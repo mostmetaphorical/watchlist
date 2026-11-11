@@ -11,7 +11,7 @@ export const STATUS = { queued: 'To watch', ongoing: 'Ongoing', done: 'Done', dr
 const ROLE = { director: 'Directed', creator: 'Created', writer: 'Written', producer: 'Produced', composer: 'Music', cinematographer: 'Cinematography', actor: 'Cast' };
 const ROLE_RANK = { director: 0, creator: 1, writer: 2, producer: 3, cinematographer: 4, composer: 5, actor: 6 };
 
-export const THEMES = [['luv', 'Luv Video', 'Black with neon green'], ['marquee', 'Marquee', 'Indigo night and bulb yellow'], ['velvet', 'Velvet', 'Oxblood and brass'], ['zine', 'Zine', 'Midnight blue and pink']];
+export const THEMES = [['luv', 'Luv Video', 'Black with neon green']];
 let LAYOUT = 'list';
 export const setLayout = (l) => { LAYOUT = l === 'posters' ? 'posters' : 'list'; };
 export function viewToggle() {
@@ -291,7 +291,7 @@ export function more() {
       <a href="#/watched">Verdicts and calibration</a>
       <a href="#/unsorted">Unsorted from Letterboxd <span class="count">${unsorted}</span></a>
       <a href="#/review">Check TMDB matches <span class="count">${review}</span></a>
-      <a href="#/settings">Look and settings</a>
+      <a href="#/settings">Settings</a>
     </nav>
     <p class="fine">${S.titles.length} titles, ${S.cur.entries.length} list entries, ${S.cur.verdicts.length} verdicts. Letterboxd export from ${esc(S.lb?.exportedAt || '—')}.</p>
     <p class="fine">Posters, credits and links come from the TMDB API. This app is not endorsed or certified by TMDB.</p>`;
@@ -409,9 +409,7 @@ export function addForm() {
     </form>`;
 }
 export function settings(auth, theme) {
-  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Look and settings</h1></header>
-    <section class="group"><h2>Look</h2><div class="themes">${THEMES.map(([v, n, d]) => `<button type="button" class="theme-opt" data-act="theme" data-v="${v}" data-theme="${v}" aria-pressed="${(theme || 'luv') === v}"><span class="sw"><i></i><i></i><i></i></span><strong>${n}</strong><span>${d}</span></button>`).join('')}</div>
-    <p class="hint">Saved on this device only.</p></section>
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Settings</h1></header>
     <h2>Data</h2>
     <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd></dl>
     <div class="actions left"><button class="btn ghost" data-act="reload">Reload data</button><button class="btn ghost danger" data-act="signout">Sign out on this device</button></div>
