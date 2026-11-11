@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.8';
+const BUILD = '2026-11-11.10';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -146,6 +146,15 @@ document.addEventListener('click', async (ev) => {
   else if (a === 'remove-entry') { const i = Number(el.closest('form').dataset.i); save(cur => { const e = entryRef(cur, id, i); cur.entries = cur.entries.filter(x => x !== e); }, `Remove ${name(id)} from a list`, 'Removed'); }
   else if (a === 'remove-verdict') { const vid = el.closest('form').dataset.v; save(cur => { cur.verdicts = cur.verdicts.filter(v => v.id !== vid); }, `Delete verdict: ${name(id)}`, 'Deleted'); }
   else if (a === 'pick-match') save(cur => { (cur.matchOverrides ||= {})[id] = { type: el.dataset.type, id: Number(el.dataset.tmdb) }; }, `Fix TMDB match: ${name(id)} [enrich]`, 'Saved. Details update in a few minutes.');
+  else if (a === 'play' || a === 'unplay') {
+    const t = el.dataset.t, on = a === 'play';
+    save(cur => { for (const e of cur.entries) if (e.t === t && e.tier === 'W') { if (on) e.played = today(); else delete e.played; } },
+      `${on ? 'Played' : 'Back on the list'}: ${name(t)}`, on ? 'Played. Back in six months.' : 'Back on the list');
+  }
+  else if (a === 'drop-store') {
+    const t = el.dataset.t;
+    save(cur => { cur.entries = cur.entries.filter(e => !(e.t === t && e.tier === 'W')); }, `Remove from store picks: ${name(t)}`, 'Removed');
+  }
   else if (a === 'retry-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'retry'; }, `Search TMDB again: ${name(id)} [enrich]`, 'Searching again. Check back in a few minutes.');
   else if (a === 'no-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'none'; }, `Mark as not on TMDB: ${name(id)} [enrich]`, 'Saved');
   else if (a === 'reload') { S.error = null; await load(); toast(S.error ? S.error : 'Up to date', !!S.error); }

@@ -158,20 +158,48 @@ export function solo(ui) {
   }).join('');
   return `<header class="view-head"><h1>Solo</h1>${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}`;
 }
+// A played pick comes back after six months so it can go on the screens again.
+export const PLAY_RESET_DAYS = 183;
+export function playedOn(e) {
+  if (!e.played) return null;
+  const days = (Date.now() - Date.parse(e.played)) / 86400000;
+  return days >= 0 && days < PLAY_RESET_DAYS ? e.played : null;
+}
+const sinceText = (d) => {
+  const days = Math.floor((Date.now() - Date.parse(d)) / 86400000);
+  const left = PLAY_RESET_DAYS - days;
+  return `Played ${days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago'} · back in ${left} day${left === 1 ? '' : 's'}`;
+};
+function storeRow(e, played) {
+  const t = title(e.t); if (!t) return '';
+  return `<div class="srow${played ? ' is-played' : ''}">
+    <button class="tick" data-act="${played ? 'unplay' : 'play'}" data-t="${esc(e.t)}" aria-pressed="${!!played}"
+      aria-label="${played ? 'Put back on the list' : 'Mark as played'}">${played ? '✓' : ''}</button>
+    ${row(e.t, { entry: e, pitch: false, marks: false })}
+    ${played ? `<div class="played-meta"><span>${esc(sinceText(played))}</span><button class="linkish" data-act="drop-store" data-t="${esc(e.t)}">Remove</button></div>` : ''}
+  </div>`;
+}
 export function store(ui) {
   const all = S.cur.entries.filter(e => e.tier === 'W');
-  const vis = all.filter(e => (ui.showSeen || e.status !== 'dropped') && (ui.kind === 'all' || !ui.kind || (title(e.t)?.kind || 'film') === ui.kind));
+  const kindOk = (e) => ui.kind === 'all' || !ui.kind || (title(e.t)?.kind || 'film') === ui.kind;
+  const live = all.filter(e => kindOk(e) && !playedOn(e));
+  const done = all.filter(e => kindOk(e) && playedOn(e)).sort((a, b) => String(b.played).localeCompare(String(a.played)));
   const order = []; for (const e of all) if (!order.includes(e.section)) order.push(e.section);
   const body = order.map(sec => {
-    const list = sortEntries(vis.filter(e => e.section === sec), ui);
+    const list = sortEntries(live.filter(e => e.section === sec), ui);
     if (!list.length) return '';
-    return `<section class="group"><h2>${esc(sec)} <span class="count">${list.length}</span></h2><div class="rows">${list.map(e => row(e.t, { entry: e, pitch: false })).join('')}</div></section>`;
+    return `<section class="group"><h2>${esc(sec)} <span class="count">${list.length}</span></h2>
+      <div class="rows store">${list.map(e => storeRow(e, null)).join('')}</div></section>`;
   }).join('');
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Store picks</h1>${syncNote()}</header>
-    <p class="lede">What to put on the screens during a We Luv Video shift. Open any title and choose “Add to a list” to put it here.</p>
-    ${all.length ? filters(ui, ['kind']) + body : empty('Nothing here yet. Paste the list into the chat and Claude can fill this shelf, or add titles one at a time from any film’s page.')}
+    <p class="lede">What to put on the screens during a We Luv Video shift. Tick one when you play it; it drops to the bottom and comes back in six months.</p>
+    ${all.length ? filters(ui, ['kind']) + body : empty('Nothing here yet. Open any film and choose “Add to a list”, or paste a list into the chat.')}
+    ${done.length ? `<section class="group played"><h2>Played <span class="count">${done.length}</span></h2>
+      <p class="hint">Back on the list automatically after six months. Remove one to keep it off for good.</p>
+      <div class="rows store">${done.map(e => storeRow(e, playedOn(e))).join('')}</div></section>` : ''}
     ${(S.cur.storeRules || []).length ? `<section class="group avoid"><h2>What to avoid</h2><ul>${S.cur.storeRules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></section>` : ''}`;
 }
+
 export function tristan(ui) {
   const vis = sortEntries(visible(S.cur.entries.filter(e => e.tier === 'T'), ui), ui);
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Tristan’s queue</h1>${syncNote()}</header>
