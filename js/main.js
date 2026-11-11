@@ -4,15 +4,15 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.11';
+const BUILD = '2026-11-11.12';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
 // ---------------------------------------------------------------- remembered view options (per device)
-const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', openNights: ['light'], kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
+const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', openShelves: {}, kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
   (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })());
 ui.spoilers = {}; ui.q = '';
-const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, openNights: ui.openNights, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
+const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, openShelves: ui.openShelves, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
 
 function applyLook() {
   const r = document.documentElement;
@@ -93,12 +93,12 @@ function render() {
       if (t && !notes.has(t.id)) getNote(t.id).then(n => { notes.set(t.id, n); if (route().arg === r.arg) render(); }).catch(() => { notes.set(t.id, null); render(); });
       html = UI.titlePage(r.arg, ui, t ? notes.get(t.id) : null); break;
     }
-    case 'p': html = UI.personPage(r.arg); break;
+    case 'p': html = UI.personPage(r.arg, ui); break;
     case 'more': html = UI.more(); break;
     case 'search': html = UI.search(ui.q); break;
     case 'add': html = UI.addForm(); break;
-    case 'watched': html = UI.watched(); break;
-    case 'unsorted': html = UI.unsorted(); break;
+    case 'watched': html = UI.watched(ui); break;
+    case 'unsorted': html = UI.unsorted(ui); break;
     case 'review': html = UI.review(); break;
     case 'settings': html = UI.settings(auth, BUILD); break;
     default: html = UI.together(ui);
@@ -170,10 +170,7 @@ document.addEventListener('change', (ev) => {
 document.addEventListener('input', (ev) => { if (ev.target.id === 'q') { ui.q = ev.target.value; clearTimeout(render.t); render.t = setTimeout(render, 120); } });
 document.addEventListener('toggle', (ev) => {
   const d = ev.target;
-  if (d.matches?.('details.shelf[data-night]') && route().name === 'together') {
-    const g = d.dataset.night; ui.openNights = d.open ? [...new Set([...ui.openNights, g])] : ui.openNights.filter(x => x !== g); remember();
-  }
-  if (d.matches?.('details.shelf[data-section]') && route().name === 'solo') { const s = d.dataset.section; ui.openSolo = d.open ? [...new Set([...ui.openSolo, s])] : ui.openSolo.filter(x => x !== s); remember(); }
+  if (d.matches?.('details.shelf[data-shelf]')) { ui.openShelves[d.dataset.shelf] = d.open; remember(); }
   if (d.matches?.('details.spoiler') && d.open) ui.spoilers[route().arg] = true;
 }, true);
 

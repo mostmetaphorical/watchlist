@@ -70,6 +70,10 @@ export function row(id, opts = {}) {
     </span>
   </a>`;
 }
+export function shelf(ui, key, head, inner, defaultOpen = true, cls = 'group shelf') {
+  const isOpen = key in (ui.openShelves || {}) ? ui.openShelves[key] : defaultOpen;
+  return `<details class="${cls}" data-shelf="${esc(key)}"${isOpen ? ' open' : ''}><summary><h2>${head}</h2></summary>${inner}</details>`;
+}
 function empty(msg, action = '') { return `<div class="empty"><p>${msg}</p>${action}</div>`; }
 function filters(ui, keys) {
   const sel = (name, opts, val) => `<label class="filter"><span class="sr">${esc(name)}</span><select data-ui="${name}">${opts.map(([v, l]) => `<option value="${v}"${v === val ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -112,29 +116,34 @@ export function together(ui) {
   const groupOf = (e) => e.tier === 'B?' ? 'test' : e.energy || 'light';
   const count = (g) => vis.filter(e => g === 'all' || groupOf(e) === g).length;
 
-  const rowsFor = (g, sub) => {
+  const rowsFor = (g, sub, collapsible) => {
     const list = sortEntries(vis.filter(e => groupOf(e) === g), ui);
     if (!list.length) return '';
     const sections = [...new Set(list.map(e => e.section))];
     if (!sub || ui.sort !== 'curated' || sections.length < 2 || g === 'test')
       return `<div class="rows">${list.map(e => row(e.t, { entry: e })).join('')}</div>`;
-    return sections.map(sec => `<h3>${esc(/^(Light nights|Dense nights|Heavy tokens)$/.test(sec) ? 'General picks' : sec)}</h3>
-      <div class="rows">${list.filter(e => e.section === sec).map(e => row(e.t, { entry: e })).join('')}</div>`).join('');
+    return sections.map(sec => {
+      const label = esc(/^(Light nights|Dense nights|Heavy tokens)$/.test(sec) ? 'General picks' : sec);
+      const rows = list.filter(e => e.section === sec);
+      const inner = `<div class="rows">${rows.map(e => row(e.t, { entry: e })).join('')}</div>`;
+      // inside a collapsed group these would be collapsibles within a collapsible, so keep them plain
+      return collapsible
+        ? shelf(ui, `vibe:${g}:${sec}`, `${label} <span class="count">${rows.length}</span>`, inner, true, 'shelf sub')
+        : `<h3>${label}</h3>${inner}`;
+    }).join('');
   };
 
   let body;
   if (ui.night === 'all') {
     body = GROUPS.map(([g, name, hint]) => {
       const n = count(g); if (!n) return '';
-      const isOpen = ui.openNights.includes(g);
-      return `<details class="group shelf" data-energy="${g}" data-night="${g}"${isOpen ? ' open' : ''}>
-        <summary><h2>${name} <span class="count">${n}</span></h2></summary>
-        <p class="hint">${hint}</p>${rowsFor(g, true)}</details>`;
+      return shelf(ui, 'night:' + g, `${name} <span class="count">${n}</span>`,
+        `<p class="hint">${hint}</p>${rowsFor(g, true, false)}`, g === 'light').replace('class="group shelf"', `class="group shelf" data-energy="${g}"`);
     }).join('');
   } else {
     const [, name, hint] = GROUPS.find(x => x[0] === ui.night) || [];
     body = `<section class="group" data-energy="${ui.night}"><h2>${esc(name || '')} <span class="count">${count(ui.night)}</span></h2>
-      <p class="hint">${esc(hint || '')}</p>${rowsFor(ui.night, true)}</section>`;
+      <p class="hint">${esc(hint || '')}</p>${rowsFor(ui.night, true, true)}</section>`;
   }
 
   return `<header class="view-head"><h1>Together</h1>${syncNote()}</header>
@@ -153,8 +162,8 @@ export function solo(ui) {
   const body = order.map(s => {
     const list = sortEntries(vis.filter(e => e.section === s), ui);
     if (!list.length) return '';
-    const isOpen = ui.openSolo.includes(s) || order.indexOf(s) === 0;
-    return `<details class="group shelf"${isOpen ? ' open' : ''} data-section="${esc(s)}"><summary><h2>${esc(s)} <span class="count">${list.length}</span></h2></summary><div class="rows">${list.map(e => row(e.t, { entry: e, pitch: false })).join('')}</div></details>`;
+    return shelf(ui, 'solo:' + s, `${esc(s)} <span class="count">${list.length}</span>`,
+      `<div class="rows">${list.map(e => row(e.t, { entry: e, pitch: false })).join('')}</div>`, order.indexOf(s) === 0);
   }).join('');
   return `<header class="view-head"><h1>Solo</h1>${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}`;
 }
@@ -188,15 +197,15 @@ export function store(ui) {
   const body = order.map(sec => {
     const list = sortEntries(live.filter(e => e.section === sec), ui);
     if (!list.length) return '';
-    return `<section class="group"><h2>${esc(sec)} <span class="count">${list.length}</span></h2>
-      <div class="rows store">${list.map(e => storeRow(e, null)).join('')}</div></section>`;
+    return shelf(ui, 'store:' + sec, `${esc(sec)} <span class="count">${list.length}</span>`,
+      `<div class="rows store">${list.map(e => storeRow(e, null)).join('')}</div>`);
   }).join('');
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Store picks</h1>${syncNote()}</header>
     <p class="lede">What to put on the screens during a We Luv Video shift. Tick one when you play it; it drops to the bottom and comes back in six months.</p>
     ${all.length ? filters(ui, ['kind']) + body : empty('Nothing here yet. Open any film and choose “Add to a list”, or paste a list into the chat.')}
-    ${done.length ? `<section class="group played"><h2>Played <span class="count">${done.length}</span></h2>
-      <p class="hint">Back on the list automatically after six months. Remove one to keep it off for good.</p>
-      <div class="rows store">${done.map(e => storeRow(e, playedOn(e))).join('')}</div></section>` : ''}
+    ${done.length ? shelf(ui, 'store:played', `Played <span class="count">${done.length}</span>`,
+      `<p class="hint">Back on the list automatically after six months. Remove one to keep it off for good.</p>
+       <div class="rows store">${done.map(e => storeRow(e, playedOn(e))).join('')}</div>`, true, 'group shelf played') : ''}
     ${(S.cur.storeRules || []).length ? `<section class="group avoid"><h2>What to avoid</h2><ul>${S.cur.storeRules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></section>` : ''}`;
 }
 
@@ -212,9 +221,10 @@ export function school(ui, vols) {
   const queue = S.cur.entries.filter(e => e.section === 'Film school' && e.note !== 'Volume 1' && !/^Volume \d+/.test(e.note || ''));
   const vis = sortEntries(visible(queue, ui), ui);
   return `<header class="view-head"><h1>Film school</h1>${syncNote()}</header>
-    <section class="group"><h2>Volumes</h2><div class="vols">${vols.map(v => `<a class="vol" href="#/school/${v.n}"><span class="vol-n">Vol. ${v.n}</span><span class="vol-t">${esc(v.title)}</span><span class="vol-p">${v.seen} of ${v.films.length} watched</span></a>`).join('') || '<p class="hint">No volumes yet.</p>'}</div>
-    <p class="hint">New volumes appear here when their notes are added to the data repo.</p></section>
-    <section class="group"><h2>On the syllabus <span class="count">${vis.length}</span></h2><p class="hint">Not yet in a volume.</p>${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('')}</div></section>`;
+    ${shelf(ui, 'school:volumes', 'Volumes', `<div class="vols">${vols.map(v => `<a class="vol" href="#/school/${v.n}"><span class="vol-n">Vol. ${v.n}</span><span class="vol-t">${esc(v.title)}</span><span class="vol-p">${v.seen} of ${v.films.length} watched</span></a>`).join('') || '<p class="hint">No volumes yet.</p>'}</div>
+    <p class="hint">New volumes appear here when their notes are added to the data repo.</p>`)}
+    ${shelf(ui, 'school:syllabus', `On the syllabus <span class="count">${vis.length}</span>`,
+      `<p class="hint">Not yet in a volume.</p>${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('')}</div>`)}`;
 }
 export function volume(n, text) {
   if (!text) return `<header class="view-head"><a class="back" href="#/school">Film school</a><h1>Volume ${esc(n)}</h1></header>${empty('This volume isn’t in the data repo yet.')}`;
@@ -345,7 +355,7 @@ export function titlePage(id, ui, note) {
 }
 
 // ---------------------------------------------------------------- Person
-export function personPage(pid) {
+export function personPage(pid, ui) {
   const person = S.people[pid];
   const rows = IX.person.get(pid) || [];
   if (!person) return `<header class="view-head"><h1>Unknown person</h1></header>`;
@@ -356,8 +366,9 @@ export function personPage(pid) {
       <h1>${esc(person.name)}</h1>${person.dept ? `<p class="hint">Known for ${esc(person.dept.toLowerCase())}</p>` : ''}
       <p class="ext"><a href="https://www.themoviedb.org/person/${esc(pid.slice(1))}" target="_blank" rel="noopener">TMDB</a><a href="https://letterboxd.com/search/${encodeURIComponent(person.name)}/" target="_blank" rel="noopener">Letterboxd</a></p></header>
     <p class="lede">${rows.length} title${rows.length === 1 ? '' : 's'} in your lists and Letterboxd.</p><div class="filters">${viewToggle()}</div>
-    ${Object.keys(byRole).sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]).map(role => `<section class="group"><h2>${ROLE[role]}</h2><div class="rows">${byRole[role]
-      .sort((a, b) => (title(b.t)?.year || 0) - (title(a.t)?.year || 0)).map(r => row(r.t, { entry: entriesOf(r.t)[0], pitch: false })).join('')}</div></section>`).join('')}`;
+    ${Object.keys(byRole).sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]).map(role => shelf(ui, `person:${pid}:${role}`,
+      `${ROLE[role]} <span class="count">${byRole[role].length}</span>`,
+      `<div class="rows">${byRole[role].sort((a, b) => (title(b.t)?.year || 0) - (title(a.t)?.year || 0)).map(r => row(r.t, { entry: entriesOf(r.t)[0], pitch: false })).join('')}</div>`)).join('')}`;
 }
 
 // ---------------------------------------------------------------- More, search, unsorted, watched, review
@@ -399,26 +410,27 @@ export function unsortedIds() {
   for (const l of Object.values(S.lb?.lists || {})) for (const id of l.items) ids.add(id);
   return [...ids].filter(id => !entriesOf(id).length && title(id) && !seen(id).meta);
 }
-export function unsorted() {
+export function unsorted(ui) {
   const ids = new Set(unsortedIds());
   const wl = [...ids].filter(id => lbOf(id)?.watchlist).sort((a, b) => (lbOf(b).watchlist || '').localeCompare(lbOf(a).watchlist || ''));
   const lists = Object.entries(S.lb?.lists || {}).map(([name, l]) => [name, l.items.filter(id => ids.has(id))]).filter(([, x]) => x.length);
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Unsorted</h1></header>
     <p class="lede">On your Letterboxd watchlist or lists, unwatched, and not on any shelf here yet. Open one and choose “Add to a list”.</p><div class="filters">${viewToggle()}</div>
-    <details class="group shelf" open><summary><h2>Letterboxd watchlist <span class="count">${wl.length}</span></h2></summary><div class="rows">${wl.map(id => row(id, { pitch: false })).join('')}</div></details>
-    ${lists.map(([name, items]) => `<details class="group shelf"><summary><h2>${esc(name)} <span class="count">${items.length}</span></h2></summary><div class="rows">${items.map(id => row(id, { pitch: false })).join('')}</div></details>`).join('')}`;
+    ${shelf(ui, 'unsorted:watchlist', `Letterboxd watchlist <span class="count">${wl.length}</span>`, `<div class="rows">${wl.map(id => row(id, { pitch: false })).join('')}</div>`)}
+    ${lists.map(([name, items]) => shelf(ui, 'unsorted:' + name, `${esc(name)} <span class="count">${items.length}</span>`, `<div class="rows">${items.map(id => row(id, { pitch: false })).join('')}</div>`, false)).join('')}`;
 }
-export function watched() {
+export function watched(ui) {
   const groups = [['both', 'Together'], ['tristan', 'Tristan'], ['meta', 'You']];
   const order = ['favourite', 'loved', 'liked', 'mixed', 'bounced', 'disliked', 'seen'];
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Verdicts</h1></header>
-    <section class="group"><h2>What we’ve learned</h2><ul class="calib">${(S.cur.calibration || []).map(c => `<li>${md(c.text).replace(/^<p>|<\/p>$/g, '')}</li>`).join('')}</ul></section>
+    ${shelf(ui, 'watched:learned', 'What we’ve learned', `<ul class="calib">${(S.cur.calibration || []).map(c => `<li>${md(c.text).replace(/^<p>|<\/p>$/g, '')}</li>`).join('')}</ul>`)}
     ${groups.map(([v, name]) => {
       const vs = S.cur.verdicts.filter(x => x.viewer === v && x.reaction !== 'seen').sort((a, b) => order.indexOf(a.reaction) - order.indexOf(b.reaction));
       if (!vs.length) return '';
-      return `<section class="group"><h2>${name} <span class="count">${vs.length}</span></h2><ul class="verdict-list">${vs.map(x => { const t = title(x.t); return t ? `<li><a href="#/t/${encodeURIComponent(t.id)}">${esc(t.title)}</a> <span class="r r-${x.reaction}">${esc(REACTION[x.reaction])}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}</li>` : ''; }).join('')}</ul></section>`;
+      return shelf(ui, 'watched:' + v, `${name} <span class="count">${vs.length}</span>`,
+        `<ul class="verdict-list">${vs.map(x => { const t = title(x.t); return t ? `<li><a href="#/t/${encodeURIComponent(t.id)}">${esc(t.title)}</a> <span class="r r-${x.reaction}">${esc(REACTION[x.reaction])}</span>${x.note ? `<small>${esc(x.note)}</small>` : ''}</li>` : ''; }).join('')}</ul>`);
     }).join('')}
-    <section class="group"><h2>Recent diary</h2><div class="rows">${(S.lb?.diary || []).slice(0, 25).map(d => row(d.t, { pitch: false })).join('')}</div></section>`;
+    ${shelf(ui, 'watched:diary', 'Recent diary', `<div class="rows">${(S.lb?.diary || []).slice(0, 25).map(d => row(d.t, { pitch: false })).join('')}</div>`)}`;
 }
 export function review() {
   const pend = S.cur.matchOverrides || {}, waiting = Object.keys(pend).length;
