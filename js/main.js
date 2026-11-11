@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.6';
+const BUILD = '2026-11-11.7';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -22,6 +22,27 @@ function applyLook() {
 }
 applyLook();
 let loginError = null, lastRoute = null, vols = null;
+
+// Remember how far down each list was scrolled, so coming back from a film lands where you left off.
+// Film and person pages always open at the top.
+const LISTS = new Set(['together', 'solo', 'tristan', 'store', 'school', 'more', 'watched', 'unsorted', 'review', 'search']);
+const scrollPos = new Map(Object.entries((() => { try { return JSON.parse(sessionStorage.getItem('fs.scroll') || '{}'); } catch { return {}; } })()));
+const keepScroll = () => { try { sessionStorage.setItem('fs.scroll', JSON.stringify(Object.fromEntries(scrollPos))); } catch {} };
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+// Hold the position for a few frames while posters settle, but give way the moment the person scrolls.
+function restoreScroll(want) {
+  window.scrollTo(0, want);
+  if (!want) return;
+  let frames = 0, done = false;
+  const stop = () => { done = true; };
+  for (const ev of ['wheel', 'touchstart', 'keydown']) addEventListener(ev, stop, { once: true, passive: true });
+  const step = () => {
+    if (done || frames++ > 5) { for (const ev of ['wheel', 'touchstart', 'keydown']) removeEventListener(ev, stop); return; }
+    if (Math.abs(window.scrollY - want) > 2) window.scrollTo(0, want);
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 const notes = new Map(); // id -> note | null (undefined = loading)
 
 function toast(msg, bad) {
@@ -83,8 +104,12 @@ function render() {
     default: html = UI.together(ui);
   }
   const y = window.scrollY;
+  if (lastRoute) { scrollPos.set(lastRoute, y); keepScroll(); }
   view.innerHTML = html;
-  if (key !== lastRoute) { window.scrollTo(0, 0); view.focus({ preventScroll: true }); } else window.scrollTo(0, y);
+  if (key !== lastRoute) {
+    restoreScroll(LISTS.has(r.name) ? (scrollPos.get(key) || 0) : 0);
+    view.focus({ preventScroll: true });
+  } else window.scrollTo(0, y);
   lastRoute = key;
   const tab = ['solo', 'school'].includes(r.name) ? r.name : r.name === 'together' ? 'together' : ['tristan', 'store', 'search', 'add', 'watched', 'unsorted', 'review', 'settings'].includes(r.name) ? 'more' : null;
   nav.querySelectorAll('a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === tab));
