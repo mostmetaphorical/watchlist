@@ -11,6 +11,21 @@ export const STATUS = { queued: 'To watch', ongoing: 'Ongoing', done: 'Done', dr
 const ROLE = { director: 'Directed', creator: 'Created', writer: 'Written', producer: 'Produced', composer: 'Music', cinematographer: 'Cinematography', actor: 'Cast' };
 const ROLE_RANK = { director: 0, creator: 1, writer: 2, producer: 3, cinematographer: 4, composer: 5, actor: 6 };
 
+export const THEMES = [['marquee', 'Marquee', 'Indigo and bulb yellow'], ['vhs', 'Video store', 'Black, white and teal'], ['velvet', 'Velvet', 'Dark oxblood and brass'], ['zine', 'Zine', 'Blue ink and pink']];
+let LAYOUT = 'list';
+export const setLayout = (l) => { LAYOUT = l === 'posters' ? 'posters' : 'list'; };
+export function viewToggle() {
+  return `<div class="viewsw" role="group" aria-label="View">${[['list', 'List'], ['posters', 'Posters']].map(([v, l]) => `<button type="button" data-act="layout" data-v="${v}" aria-pressed="${LAYOUT === v}">${l}</button>`).join('')}</div>`;
+}
+function byline(t) {
+  const names = (r) => [...new Set((t.credits || []).filter(c => c.r === r).map(c => S.people[c.p]?.name).filter(Boolean))];
+  const d = names('director'), w = names('writer').slice(0, 3), cr = names('creator');
+  if (t.kind === 'series') return cr.length ? `Created by ${cr.join(', ')}` : d.length ? `Directed by ${d.join(', ')}` : '';
+  if (!d.length) return w.length ? `Written by ${w.join(', ')}` : '';
+  if (w.length && w.length === d.length && w.every(x => d.includes(x))) return `Written and directed by ${d.join(', ')}`;
+  return `Directed by ${d.join(', ')}` + (w.length ? `. Written by ${w.join(', ')}` : '');
+}
+
 // ---------------------------------------------------------------- small parts
 export function runtime(t) {
   if (t.kind === 'series' && t.seasons) return `${t.seasons} season${t.seasons > 1 ? 's' : ''}`;
@@ -38,12 +53,19 @@ export const stars = (r) => '★'.repeat(Math.floor(r)) + (r % 1 ? '½' : '');
 export function row(id, opts = {}) {
   const t = title(id); if (!t) return '';
   const e = opts.entry, p = opts.pitch !== false && pitchOf(t.id);
-  return `<a class="row${e?.star ? ' starred' : ''}" href="#/t/${encodeURIComponent(t.id)}" data-energy="${esc(e?.energy || (e?.tier === 'B?' ? 'test' : ''))}">
+  const en = esc(e?.energy || (e?.tier === 'B?' ? 'test' : ''));
+  const star = e?.star ? '<span class="star" title="Highest-confidence pick">★</span>' : '';
+  if (LAYOUT === 'posters') return `<a class="pcard" href="#/t/${encodeURIComponent(t.id)}" data-energy="${en}">
+    ${poster(t, 'w342')}<span class="pcard-title">${star}${esc(t.title)}</span><span class="row-meta">${metaLine(t)}</span></a>`;
+  const by = byline(t);
+  return `<a class="row${e?.star ? ' starred' : ''}" href="#/t/${encodeURIComponent(t.id)}" data-energy="${en}">
     ${poster(t)}
     <span class="row-main">
-      <span class="row-title">${e?.star ? '<span class="star" title="Highest-confidence pick">★</span>' : ''}${esc(t.title)}</span>
+      <span class="row-title">${star}${esc(t.title)}</span>
       <span class="row-meta">${metaLine(t)}</span>
+      ${by ? `<span class="row-by">${esc(by)}</span>` : ''}
       ${p ? `<span class="row-pitch">${esc(p)}</span>` : e?.note && opts.note !== false ? `<span class="row-pitch note">${esc(e.note)}</span>` : ''}
+      ${t.overview ? `<span class="row-syn">${esc(t.overview)}</span>` : ''}
       ${opts.marks !== false ? `<span class="row-marks">${marks(t.id)}${t.match === 'pending' ? '<span class="mark">Looking it up</span>' : ''}</span>` : ''}
     </span>
   </a>`;
@@ -54,6 +76,7 @@ function filters(ui, keys) {
   return `<div class="filters">
     ${keys.includes('kind') ? sel('kind', [['all', 'Films & series'], ['film', 'Films'], ['series', 'Series']], ui.kind) : ''}
     ${sel('sort', [['curated', 'List order'], ['short', 'Shortest first'], ['new', 'Newest first'], ['old', 'Oldest first'], ['az', 'A to Z']], ui.sort)}
+    ${viewToggle()}
     <label class="toggle"><input type="checkbox" data-ui="showSeen"${ui.showSeen ? ' checked' : ''}><span>Show watched</span></label>
   </div>`;
 }
@@ -250,7 +273,7 @@ export function personPage(pid) {
       ${person.img ? `<img class="headshot" src="${IMG}w185${esc(person.img)}" alt="">` : ''}
       <h1>${esc(person.name)}</h1>${person.dept ? `<p class="hint">Known for ${esc(person.dept.toLowerCase())}</p>` : ''}
       <p class="ext"><a href="https://www.themoviedb.org/person/${esc(pid.slice(1))}" target="_blank" rel="noopener">TMDB</a><a href="https://letterboxd.com/search/${encodeURIComponent(person.name)}/" target="_blank" rel="noopener">Letterboxd</a></p></header>
-    <p class="lede">${rows.length} title${rows.length === 1 ? '' : 's'} in your lists and Letterboxd.</p>
+    <p class="lede">${rows.length} title${rows.length === 1 ? '' : 's'} in your lists and Letterboxd.</p><div class="filters">${viewToggle()}</div>
     ${Object.keys(byRole).sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]).map(role => `<section class="group"><h2>${ROLE[role]}</h2><div class="rows">${byRole[role]
       .sort((a, b) => (title(b.t)?.year || 0) - (title(a.t)?.year || 0)).map(r => row(r.t, { entry: entriesOf(r.t)[0], pitch: false })).join('')}</div></section>`).join('')}`;
 }
@@ -266,7 +289,7 @@ export function more() {
       <a href="#/watched">Verdicts and calibration</a>
       <a href="#/unsorted">Unsorted from Letterboxd <span class="count">${unsorted}</span></a>
       <a href="#/review">Check TMDB matches <span class="count">${review}</span></a>
-      <a href="#/settings">Settings</a>
+      <a href="#/settings">Look and settings</a>
     </nav>
     <p class="fine">${S.titles.length} titles, ${S.cur.entries.length} list entries, ${S.cur.verdicts.length} verdicts. Letterboxd export from ${esc(S.lb?.exportedAt || '—')}.</p>
     <p class="fine">Posters, credits and links come from the TMDB API. This app is not endorsed or certified by TMDB.</p>`;
@@ -298,7 +321,7 @@ export function unsorted() {
   const wl = [...ids].filter(id => lbOf(id)?.watchlist).sort((a, b) => (lbOf(b).watchlist || '').localeCompare(lbOf(a).watchlist || ''));
   const lists = Object.entries(S.lb?.lists || {}).map(([name, l]) => [name, l.items.filter(id => ids.has(id))]).filter(([, x]) => x.length);
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Unsorted</h1></header>
-    <p class="lede">On your Letterboxd watchlist or lists, unwatched, and not on any shelf here yet. Open one and choose “Add to a list”.</p>
+    <p class="lede">On your Letterboxd watchlist or lists, unwatched, and not on any shelf here yet. Open one and choose “Add to a list”.</p><div class="filters">${viewToggle()}</div>
     <details class="group shelf" open><summary><h2>Letterboxd watchlist <span class="count">${wl.length}</span></h2></summary><div class="rows">${wl.map(id => row(id, { pitch: false })).join('')}</div></details>
     ${lists.map(([name, items]) => `<details class="group shelf"><summary><h2>${esc(name)} <span class="count">${items.length}</span></h2></summary><div class="rows">${items.map(id => row(id, { pitch: false })).join('')}</div></details>`).join('')}`;
 }
@@ -382,8 +405,11 @@ export function addForm() {
       <p class="hint">The poster, credits and links are looked up on TMDB within a few minutes.</p>
     </form>`;
 }
-export function settings(auth) {
-  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Settings</h1></header>
+export function settings(auth, theme) {
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Look and settings</h1></header>
+    <section class="group"><h2>Look</h2><div class="themes">${THEMES.map(([v, n, d]) => `<button type="button" class="theme-opt" data-act="theme" data-v="${v}" data-theme="${v}" aria-pressed="${(theme || 'marquee') === v}"><span class="sw"><i></i><i></i><i></i></span><strong>${n}</strong><span>${d}</span></button>`).join('')}</div>
+    <p class="hint">Saved on this device only.</p></section>
+    <h2>Data</h2>
     <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd></dl>
     <div class="actions left"><button class="btn ghost" data-act="reload">Reload data</button><button class="btn ghost danger" data-act="signout">Sign out on this device</button></div>
     <p class="hint">Signing out removes the token and the offline copy from this device only.</p>`;

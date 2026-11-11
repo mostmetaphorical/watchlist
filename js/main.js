@@ -8,11 +8,17 @@ const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
 // ---------------------------------------------------------------- remembered view options (per device)
-const ui = Object.assign({ night: 'all', kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
+const ui = Object.assign({ theme: 'marquee', layout: 'list', night: 'all', kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
   (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })());
 ui.spoilers = {}; ui.q = '';
-const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ night: ui.night, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
+const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
 
+function applyLook() {
+  const r = document.documentElement;
+  if (ui.theme && ui.theme !== 'marquee') r.dataset.theme = ui.theme; else delete r.dataset.theme;
+  r.dataset.layout = ui.layout; UI.setLayout(ui.layout);
+}
+applyLook();
 let loginError = null, lastRoute = null, vols = null;
 const notes = new Map(); // id -> note | null (undefined = loading)
 
@@ -70,7 +76,7 @@ function render() {
     case 'watched': html = UI.watched(); break;
     case 'unsorted': html = UI.unsorted(); break;
     case 'review': html = UI.review(); break;
-    case 'settings': html = UI.settings(auth); break;
+    case 'settings': html = UI.settings(auth, ui.theme); break;
     default: html = UI.together(ui);
   }
   const y = window.scrollY;
@@ -97,6 +103,8 @@ document.addEventListener('click', async (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const a = el.dataset.act, id = el.dataset.id || el.closest('form')?.dataset.id;
   if (a === 'night') { ui.night = el.dataset.v; remember(); render(); }
+  else if (a === 'layout') { ui.layout = el.dataset.v; remember(); applyLook(); render(); }
+  else if (a === 'theme') { ui.theme = el.dataset.v; remember(); applyLook(); render(); }
   else if (a === 'add-entry') openSheet(UI.entryForm(id));
   else if (a === 'edit-entry') openSheet(UI.entryForm(id, Number(el.dataset.i)));
   else if (a === 'add-verdict') openSheet(UI.verdictForm(id));
