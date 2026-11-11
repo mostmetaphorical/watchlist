@@ -157,7 +157,8 @@ export function store(ui) {
   }).join('');
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Store picks</h1>${syncNote()}</header>
     <p class="lede">What to put on the screens during a We Luv Video shift. Open any title and choose “Add to a list” to put it here.</p>
-    ${all.length ? filters(ui, ['kind']) + body : empty('Nothing here yet. Paste the list into the chat and Claude can fill this shelf, or add titles one at a time from any film’s page.')}`;
+    ${all.length ? filters(ui, ['kind']) + body : empty('Nothing here yet. Paste the list into the chat and Claude can fill this shelf, or add titles one at a time from any film’s page.')}
+    ${(S.cur.storeRules || []).length ? `<section class="group avoid"><h2>What to avoid</h2><ul>${S.cur.storeRules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></section>` : ''}`;
 }
 export function tristan(ui) {
   const vis = sortEntries(visible(S.cur.entries.filter(e => e.tier === 'T'), ui), ui);
@@ -304,7 +305,6 @@ export function more() {
     <nav class="menu">
       <a href="#/tristan">Tristan’s queue <span class="count">${S.cur.entries.filter(e => e.tier === 'T' && open(e)).length}</span></a>
       <a href="#/store">Store picks — We Luv Video <span class="count">${S.cur.entries.filter(e => e.tier === 'W').length}</span></a>
-      <a href="#/search">Search everything</a>
       <a href="#/add">Add a film or show</a>
       <a href="#/watched">Verdicts and calibration</a>
       <a href="#/unsorted">Unsorted from Letterboxd <span class="count">${unsorted}</span></a>
