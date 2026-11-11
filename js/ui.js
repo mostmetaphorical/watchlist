@@ -212,18 +212,21 @@ export function titlePage(id, ui, note) {
         const after = /^after/i.test(pt.label);
         const qs = /diary/i.test(pt.label) && splitQuestions(pt.body);
         const inner = qs ? `<ol class="questions">${qs.map(q => `<li>${md(q).replace(/^<p>|<\/p>$/g, '')}</li>`).join('')}</ol>` : md(pt.body);
+        if (/^read more/i.test(pt.label)) return `<p class="note-more">${inner.replace(/^<p>|<\/p>$/g, '')}</p>`;
         if (after && !ui.spoilers[t.id]) return `<details class="note-part spoiler"><summary>${esc(pt.label)} <span class="hint">contains spoilers</span></summary><div class="prose">${inner}</div></details>`;
         return pt.label ? `<details class="note-part"${/before/i.test(pt.label) ? ' open' : ''}><summary>${esc(pt.label)}</summary><div class="prose">${inner}</div></details>` : `<div class="prose">${inner}</div>`;
       }).join('') + `<button class="btn ghost small" data-act="edit-note" data-id="${esc(t.id)}">Edit notes</button>`;
   }
 
   const pendingMatch = S.cur.matchOverrides?.[t.id];
-  const matchHtml = pendingMatch ? `<section class="block ok-block" role="status"><h2>Match saved</h2><p class="hint">${pendingMatch === 'none' ? 'Marked as not on TMDB.' : 'Your choice is saved.'} The poster and details update here by themselves in a few minutes.</p></section>`
+  const fixBtns = `<div class="actions left"><button class="btn ghost small" data-act="retry-match" data-id="${esc(t.id)}">Search TMDB again</button><button class="btn ghost small" data-act="fix-match" data-id="${esc(t.id)}">Paste a TMDB link</button></div>`;
+  const matchHtml = pendingMatch ? `<section class="block ok-block" role="status"><h2>${pendingMatch === 'retry' ? 'Looking it up again' : 'Match saved'}</h2><p class="hint">${pendingMatch === 'none' ? 'Marked as not on TMDB.' : pendingMatch === 'retry' ? 'TMDB will be searched again.' : 'Your choice is saved.'} This page updates by itself in a few minutes.</p>${pendingMatch === 'none' ? fixBtns : ''}</section>`
+    : t.match === 'none' && t.kind !== 'standup' ? `<section class="block warn-block"><h2>Marked as not on TMDB</h2><p class="hint">No poster, credits or cross-links for this one. Changed your mind, or has it been added to TMDB since?</p>${fixBtns}</section>`
     : t.match === 'review' && t.candidates?.length ? `<section class="block warn-block"><h2>Is this the right ${t.kind === 'series' ? 'show' : 'film'}?</h2>
       <p class="hint">The TMDB lookup wasn’t sure. Pick the right one and the details update on the next lookup run.</p>
       <div class="cands">${t.candidates.map(c => `<button class="cand" data-act="pick-match" data-id="${esc(t.id)}" data-type="${c.type}" data-tmdb="${c.id}">${c.poster ? `<img src="${IMG}w154${esc(c.poster)}" alt="" loading="lazy">` : '<span class="poster ph"></span>'}<span>${esc(c.title)} <em>${esc(c.year || '')}</em> <small>${c.type === 'tv' ? 'series' : 'film'}</small></span></button>`).join('')}</div>
       <button class="btn ghost small" data-act="fix-match" data-id="${esc(t.id)}">None of these</button></section>`
-    : t.match === 'notfound' ? `<section class="block warn-block"><h2>Not found on TMDB</h2><p class="hint">Paste the TMDB link if you can find it.</p><button class="btn ghost small" data-act="fix-match" data-id="${esc(t.id)}">Add the TMDB link</button></section>`
+    : t.match === 'notfound' ? `<section class="block warn-block"><h2>Not found on TMDB</h2><p class="hint">The search came back empty. Paste the link if you can find it, or try the search again.</p>${fixBtns}</section>`
     : t.match === 'pending' ? `<p class="hint block">Poster, credits and links appear after the next TMDB lookup (usually within a few minutes).</p>` : '';
 
   return `<article class="title-page">

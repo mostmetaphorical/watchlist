@@ -117,6 +117,7 @@ document.addEventListener('click', async (ev) => {
   else if (a === 'remove-entry') { const i = Number(el.closest('form').dataset.i); save(cur => { const e = entryRef(cur, id, i); cur.entries = cur.entries.filter(x => x !== e); }, `Remove ${name(id)} from a list`, 'Removed'); }
   else if (a === 'remove-verdict') { const vid = el.closest('form').dataset.v; save(cur => { cur.verdicts = cur.verdicts.filter(v => v.id !== vid); }, `Delete verdict: ${name(id)}`, 'Deleted'); }
   else if (a === 'pick-match') save(cur => { (cur.matchOverrides ||= {})[id] = { type: el.dataset.type, id: Number(el.dataset.tmdb) }; }, `Fix TMDB match: ${name(id)} [enrich]`, 'Saved. Details update in a few minutes.');
+  else if (a === 'retry-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'retry'; }, `Search TMDB again: ${name(id)} [enrich]`, 'Searching again. Check back in a few minutes.');
   else if (a === 'no-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'none'; }, `Mark as not on TMDB: ${name(id)} [enrich]`, 'Saved');
   else if (a === 'reload') { S.error = null; await load(); toast(S.error ? S.error : 'Up to date', !!S.error); }
   else if (a === 'signout') { setAuth(null); await cacheClear(); location.hash = ''; location.reload(); }

@@ -228,3 +228,5 @@ textarea { resize: vertical; line-height: 1.45; }
 :root[data-theme=luv] .row, :root[data-theme=luv] .menu a, :root[data-theme=luv] .placement { border: 1px solid var(--line); border-left: 5px solid var(--c, var(--line)); }
 :root[data-theme=luv] .pitch { transform: rotate(-1deg); border-radius: 18px; } :root[data-theme=luv] .star { -webkit-text-stroke: 0; }
 :root[data-theme=luv] #nav { border-top: 1px solid var(--line); }
+.note-more { margin: 10px 0 14px; font-size: .9rem; }
+.note-more a { color: var(--bulb); }
