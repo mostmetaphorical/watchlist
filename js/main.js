@@ -4,15 +4,15 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.5';
+const BUILD = '2026-11-11.6';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
 // ---------------------------------------------------------------- remembered view options (per device)
-const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
+const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', openNights: ['light'], kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
   (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })());
 ui.spoilers = {}; ui.q = '';
-const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
+const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, openNights: ui.openNights, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
 
 function applyLook() {
   const r = document.documentElement;
@@ -136,6 +136,9 @@ document.addEventListener('change', (ev) => {
 document.addEventListener('input', (ev) => { if (ev.target.id === 'q') { ui.q = ev.target.value; clearTimeout(render.t); render.t = setTimeout(render, 120); } });
 document.addEventListener('toggle', (ev) => {
   const d = ev.target;
+  if (d.matches?.('details.shelf[data-night]') && route().name === 'together') {
+    const g = d.dataset.night; ui.openNights = d.open ? [...new Set([...ui.openNights, g])] : ui.openNights.filter(x => x !== g); remember();
+  }
   if (d.matches?.('details.shelf[data-section]') && route().name === 'solo') { const s = d.dataset.section; ui.openSolo = d.open ? [...new Set([...ui.openSolo, s])] : ui.openSolo.filter(x => x !== s); remember(); }
   if (d.matches?.('details.spoiler') && d.open) ui.spoilers[route().arg] = true;
 }, true);

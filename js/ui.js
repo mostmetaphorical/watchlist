@@ -103,31 +103,43 @@ export function syncNote() {
 }
 
 // ---------------------------------------------------------------- Together
-const NIGHTS = [['all', 'Any night'], ['light', 'Light'], ['dense', 'Dense'], ['heavy', 'Heavy token'], ['test', 'Test one']];
+const NIGHTS = [['all', 'Any night'], ['light', 'Light'], ['dense', 'Dense'], ['heavy', 'Heavy'], ['test', 'Test']];
+const GROUPS = [['light', 'Light nights', 'Easy to start, easy to stop.'], ['dense', 'Dense nights', 'Full attention, worth it.'],
+  ['heavy', 'Heavy tokens', 'Ration these. Both opt in.'], ['test', 'Test together', 'One episode or twenty minutes, then decide.']];
 export function together(ui) {
   const all = S.cur.entries.filter(e => e.tier === 'B' || e.tier === 'B?');
   const vis = visible(all, ui);
   const groupOf = (e) => e.tier === 'B?' ? 'test' : e.energy || 'light';
   const count = (g) => vis.filter(e => g === 'all' || groupOf(e) === g).length;
-  const groups = [['light', 'Light nights', 'Easy to start, easy to stop.'], ['dense', 'Dense nights', 'Full attention, worth it.'], ['heavy', 'Heavy tokens', 'Ration these. Both opt in.'], ['test', 'Test together', 'One episode or twenty minutes, then decide.']]
-    .filter(([g]) => ui.night === 'all' || ui.night === g);
-  let body = '';
-  for (const [g, name, hint] of groups) {
+
+  const rowsFor = (g, sub) => {
     const list = sortEntries(vis.filter(e => groupOf(e) === g), ui);
-    if (!list.length) continue;
+    if (!list.length) return '';
     const sections = [...new Set(list.map(e => e.section))];
-    const sub = ui.sort === 'curated' && sections.length > 1 && g !== 'test';
-    body += `<section class="group" data-energy="${g}"><h2>${name} <span class="count">${list.length}</span></h2><p class="hint">${hint}</p>`;
-    if (sub) for (const s of sections) {
-      const sl = list.filter(e => e.section === s);
-      body += `<h3>${esc(/^(Light nights|Dense nights|Heavy tokens)$/.test(s) ? 'General picks' : s)}</h3><div class="rows">${sl.map(e => row(e.t, { entry: e })).join('')}</div>`;
-    } else body += `<div class="rows">${list.map(e => row(e.t, { entry: e })).join('')}</div>`;
-    body += '</section>';
+    if (!sub || ui.sort !== 'curated' || sections.length < 2 || g === 'test')
+      return `<div class="rows">${list.map(e => row(e.t, { entry: e })).join('')}</div>`;
+    return sections.map(sec => `<h3>${esc(/^(Light nights|Dense nights|Heavy tokens)$/.test(sec) ? 'General picks' : sec)}</h3>
+      <div class="rows">${list.filter(e => e.section === sec).map(e => row(e.t, { entry: e })).join('')}</div>`).join('');
+  };
+
+  let body;
+  if (ui.night === 'all') {
+    body = GROUPS.map(([g, name, hint]) => {
+      const n = count(g); if (!n) return '';
+      const isOpen = ui.openNights.includes(g);
+      return `<details class="group shelf" data-energy="${g}" data-night="${g}"${isOpen ? ' open' : ''}>
+        <summary><h2>${name} <span class="count">${n}</span></h2></summary>
+        <p class="hint">${hint}</p>${rowsFor(g, true)}</details>`;
+    }).join('');
+  } else {
+    const [, name, hint] = GROUPS.find(x => x[0] === ui.night) || [];
+    body = `<section class="group" data-energy="${ui.night}"><h2>${esc(name || '')} <span class="count">${count(ui.night)}</span></h2>
+      <p class="hint">${esc(hint || '')}</p>${rowsFor(ui.night, true)}</section>`;
   }
+
   return `<header class="view-head"><h1>Together</h1>${syncNote()}</header>
-    <div class="night" role="radiogroup" aria-label="What kind of night?">
-      <p class="night-q" id="nightq">What kind of night?</p>
-      <div class="night-opts">${NIGHTS.map(([v, l]) => `<button type="button" role="radio" aria-checked="${ui.night === v}" data-act="night" data-v="${v}" data-energy="${v}"><span class="n-label">${l}</span><span class="n-count">${count(v)}</span></button>`).join('')}</div>
+    <div class="vibes" role="tablist" aria-label="What kind of night?">
+      ${NIGHTS.map(([v, l]) => `<button type="button" role="tab" aria-selected="${ui.night === v}" data-act="night" data-v="${v}" data-energy="${v === 'all' ? '' : v}"><span>${l}</span><span class="n-count">${count(v)}</span></button>`).join('')}
     </div>
     ${filters(ui, ['kind'])}
     ${body || empty(ui.showSeen ? 'Nothing here yet.' : 'Everything on this shelf is watched. Turn on “Show watched” to see it.')}`;
