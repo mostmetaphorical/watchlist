@@ -375,19 +375,31 @@ export function personPage(pid, ui) {
 }
 
 // ---------------------------------------------------------------- More, search, unsorted, watched, review
+const sv = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  queue: sv('<path d="M7 3h10a1 1 0 0 1 1 1v16l-6-4-6 4V4a1 1 0 0 1 1-1z"/>'),
+  tape: sv('<path d="M3.5 9.5V19a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V9.5"/><path d="M2.4 9.5 4.1 5a1 1 0 0 1 .94-.65h13.92a1 1 0 0 1 .94.65l1.7 4.5"/><path d="M9.2 20v-5.6h5.6V20"/>'),
+  plus: sv('<circle cx="12" cy="12" r="8.5"/><path d="M12 8.2v7.6M8.2 12h7.6"/>'),
+  tray: sv('<path d="M3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5"/><path d="M3 13.5h5l1.2 2h5.6l1.2-2h5"/><path d="M12 3v7m0 0 2.6-2.6M12 10 9.4 7.4"/>'),
+  verify: sv('<path d="M7 4h7l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v4h4"/><path d="M9 14l2.2 2.2L15.5 12"/>'),
+  star: sv('<path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.6 9.7l5.8-.8z"/>'),
+  gear: sv('<circle cx="12" cy="12" r="3"/><path d="M19.1 14.7a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-2.6 1.1v.2a1.8 1.8 0 0 1-3.6 0v-.1a1.5 1.5 0 0 0-2.6-1.1l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0-1.1-2.6h-.2a1.8 1.8 0 0 1 0-3.6h.1a1.5 1.5 0 0 0 1.1-2.6l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4v-.2a1.8 1.8 0 0 1 3.6 0v.1a1.5 1.5 0 0 0 2.6 1.1l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.8 1.8 0 0 1 0 3.6h-.1a1.5 1.5 0 0 0-1.4.9z"/>'),
+};
+
 export function more() {
   const review = S.titles.filter(t => (t.match === 'review' || t.match === 'notfound') && !S.cur.matchOverrides?.[t.id]).length;
   const unsorted = unsortedIds().length;
+  const tiles = [
+    ['#/tristan', 'Tristan’s queue', ICON.queue, S.cur.entries.filter(e => e.tier === 'T' && open(e)).length],
+    ['#/store', 'Store picks', ICON.tape, S.cur.entries.filter(e => e.tier === 'W').length],
+    ['#/add', 'Add a title', ICON.plus, 0],
+    ['#/unsorted', 'Unsorted', ICON.tray, unsorted],
+    ['#/review', 'Check matches', ICON.verify, review],
+    ['#/watched', 'Verdicts', ICON.star, S.cur.verdicts.length],
+    ['#/settings', 'Settings', ICON.gear, 0],
+  ];
   return `<header class="view-head"><h1>More</h1>${syncNote()}</header>
-    <nav class="menu">
-      <a href="#/tristan">Tristan’s queue <span class="count">${S.cur.entries.filter(e => e.tier === 'T' && open(e)).length}</span></a>
-      <a href="#/store">Store picks — We Luv Video <span class="count">${S.cur.entries.filter(e => e.tier === 'W').length}</span></a>
-      <a href="#/add">Add a film or show</a>
-      <a href="#/watched">Verdicts and calibration</a>
-      <a href="#/unsorted">Unsorted from Letterboxd <span class="count">${unsorted}</span></a>
-      <a href="#/review">Check TMDB matches <span class="count">${review}</span></a>
-      <a href="#/settings">Settings</a>
-    </nav>
+    <nav class="tiles">${tiles.map(([href, label, icon, n]) => `<a class="tile" href="${href}">${icon}<span class="lbl">${label}</span>${n ? `<span class="count">${n}</span>` : ''}</a>`).join('')}</nav>
     <p class="fine">${S.titles.length} titles, ${S.cur.entries.length} list entries, ${S.cur.verdicts.length} verdicts. Letterboxd export from ${esc(S.lb?.exportedAt || '—')}.</p>
     <p class="fine">Posters, credits and links come from the TMDB API. This app is not endorsed or certified by TMDB.</p>`;
 }
