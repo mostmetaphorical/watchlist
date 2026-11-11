@@ -377,7 +377,7 @@ export function personPage(pid, ui) {
 // ---------------------------------------------------------------- More, search, unsorted, watched, review
 const sv = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const ICON = {
-  queue: sv('<path d="M7 3h10a1 1 0 0 1 1 1v16l-6-4-6 4V4a1 1 0 0 1 1-1z"/>'),
+  wolf: sv('<path d="M6.5 3.2 9.8 7.1l2.9-.2L12.1 2.8l3.2 4.4c1.3.8 2.4 1.9 3.1 3.2l3.5 2-2.2 1.6-3.4.3-1.9 2.7-4.8 1.8-3-.4-1.3-2.4c-.6-2.9-.5-5.3.1-7.1.5-1.9 1.3-3 1.8-3.6z"/><circle cx="14.8" cy="10.7" r=".8" fill="currentColor" stroke="none"/>'),
   tape: sv('<path d="M3.5 9.5V19a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V9.5"/><path d="M2.4 9.5 4.1 5a1 1 0 0 1 .94-.65h13.92a1 1 0 0 1 .94.65l1.7 4.5"/><path d="M9.2 20v-5.6h5.6V20"/>'),
   plus: sv('<circle cx="12" cy="12" r="8.5"/><path d="M12 8.2v7.6M8.2 12h7.6"/>'),
   tray: sv('<path d="M3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5"/><path d="M3 13.5h5l1.2 2h5.6l1.2-2h5"/><path d="M12 3v7m0 0 2.6-2.6M12 10 9.4 7.4"/>'),
@@ -390,7 +390,7 @@ export function more() {
   const review = S.titles.filter(t => (t.match === 'review' || t.match === 'notfound') && !S.cur.matchOverrides?.[t.id]).length;
   const unsorted = unsortedIds().length;
   const tiles = [
-    ['#/tristan', 'Tristan’s queue', ICON.queue, S.cur.entries.filter(e => e.tier === 'T' && open(e)).length],
+    ['#/tristan', 'Tristan’s queue', ICON.wolf, S.cur.entries.filter(e => e.tier === 'T' && open(e)).length],
     ['#/store', 'Store picks', ICON.tape, S.cur.entries.filter(e => e.tier === 'W').length],
     ['#/add', 'Add a title', ICON.plus, 0],
     ['#/unsorted', 'Unsorted', ICON.tray, unsorted],
