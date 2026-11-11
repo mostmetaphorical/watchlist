@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Film School</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1c1730">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="view" tabindex="-1"></div>
+<nav id="nav" hidden aria-label="Lists">
+  <a href="#/together" data-tab="together">Together</a>
+  <a href="#/solo" data-tab="solo">Solo</a>
+  <a href="#/tristan" data-tab="tristan">Tristan</a>
+  <a href="#/school" data-tab="school">School</a>
+  <a href="#/more" data-tab="more">More</a>
+</nav>
+<dialog id="sheet" aria-label="Edit"><button class="sheet-close" data-act="close-sheet" aria-label="Close">Close</button><div id="sheet-body"></div></dialog>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
