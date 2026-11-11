@@ -4,7 +4,7 @@ import { esc, md, frontMatter, noteSections, splitQuestions } from './md.js';
 
 export const IMG = 'https://image.tmdb.org/t/p/';
 export const ENERGY = { light: 'Light night', dense: 'Dense night', heavy: 'Heavy token' };
-export const TIER = { B: 'Together', 'B?': 'Test together', M: 'Solo', T: 'Tristan’s queue' };
+export const TIER = { B: 'Together', 'B?': 'Test together', M: 'Solo', T: 'Tristan’s queue', W: 'Store picks' };
 export const REACTION = { favourite: 'All-time favourite', loved: 'Loved it', liked: 'Liked it', mixed: 'Mixed', bounced: 'Bounced off', disliked: 'Disliked', seen: 'Seen' };
 export const VIEWER = { both: 'Together', tristan: 'Tristan', meta: 'You' };
 export const STATUS = { queued: 'To watch', ongoing: 'Ongoing', done: 'Done', dropped: 'Dropped' };
@@ -146,9 +146,22 @@ export function solo(ui) {
   }).join('');
   return `<header class="view-head"><h1>Solo</h1>${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}`;
 }
+export function store(ui) {
+  const all = S.cur.entries.filter(e => e.tier === 'W');
+  const vis = all.filter(e => (ui.showSeen || e.status !== 'dropped') && (ui.kind === 'all' || !ui.kind || (title(e.t)?.kind || 'film') === ui.kind));
+  const order = []; for (const e of all) if (!order.includes(e.section)) order.push(e.section);
+  const body = order.map(sec => {
+    const list = sortEntries(vis.filter(e => e.section === sec), ui);
+    if (!list.length) return '';
+    return `<section class="group"><h2>${esc(sec)} <span class="count">${list.length}</span></h2><div class="rows">${list.map(e => row(e.t, { entry: e, pitch: false })).join('')}</div></section>`;
+  }).join('');
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Store picks</h1>${syncNote()}</header>
+    <p class="lede">What to put on the screens during a We Luv Video shift. Open any title and choose “Add to a list” to put it here.</p>
+    ${all.length ? filters(ui, ['kind']) + body : empty('Nothing here yet. Paste the list into the chat and Claude can fill this shelf, or add titles one at a time from any film’s page.')}`;
+}
 export function tristan(ui) {
   const vis = sortEntries(visible(S.cur.entries.filter(e => e.tier === 'T'), ui), ui);
-  return `<header class="view-head"><h1>Tristan’s queue</h1>${syncNote()}</header>
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Tristan’s queue</h1>${syncNote()}</header>
     <p class="lede">For when you’re travelling: universe-loyalty picks and Moffat. Things he’ll enjoy and you won’t.</p>
     ${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('') || empty('His queue is empty.')}</div>`;
 }
@@ -289,6 +302,8 @@ export function more() {
   const unsorted = unsortedIds().length;
   return `<header class="view-head"><h1>More</h1>${syncNote()}</header>
     <nav class="menu">
+      <a href="#/tristan">Tristan’s queue <span class="count">${S.cur.entries.filter(e => e.tier === 'T' && open(e)).length}</span></a>
+      <a href="#/store">Store picks — We Luv Video <span class="count">${S.cur.entries.filter(e => e.tier === 'W').length}</span></a>
       <a href="#/search">Search everything</a>
       <a href="#/add">Add a film or show</a>
       <a href="#/watched">Verdicts and calibration</a>
@@ -357,7 +372,7 @@ export function entryForm(id, i) {
   const e = i === undefined ? { tier: 'B', energy: 'dense', section: '', status: 'queued' } : entriesOf(id)[i];
   return `<form data-form="entry" data-id="${esc(id)}" data-i="${i ?? ''}">
     <h2>${i === undefined ? 'Add to a list' : 'Edit list placement'}</h2>
-    <label>List<select name="tier">${opt([['B', 'Together'], ['B?', 'Test together'], ['M', 'Solo'], ['T', 'Tristan’s queue']], e.tier)}</select></label>
+    <label>List<select name="tier">${opt([['B', 'Together'], ['B?', 'Test together'], ['M', 'Solo'], ['T', 'Tristan’s queue'], ['W', 'Store picks']], e.tier)}</select></label>
     <label>Energy<select name="energy">${opt([['', 'Not set'], ['light', 'Light night'], ['dense', 'Dense night'], ['heavy', 'Heavy token']], e.energy)}</select></label>
     <label>Shelf<input name="section" list="sections" value="${esc(e.section)}" placeholder="e.g. Dense nights"></label>${sectionList()}
     <label>Status<select name="status">${opt(Object.entries(STATUS), e.status || 'queued')}</select></label>
@@ -403,7 +418,7 @@ export function addForm() {
       <label>Title<input name="title" required autocomplete="off"></label>
       <label>Year<input name="year" inputmode="numeric" pattern="\\d{4}" placeholder="Optional, helps the lookup"></label>
       <fieldset class="seg"><legend>Kind</legend><label><input type="radio" name="kind" value="film" checked><span>Film</span></label><label><input type="radio" name="kind" value="series"><span>Series</span></label><label><input type="radio" name="kind" value=""><span>Not sure</span></label></fieldset>
-      <label>List<select name="tier">${opt([['B', 'Together'], ['B?', 'Test together'], ['M', 'Solo'], ['T', 'Tristan’s queue']], 'B')}</select></label>
+      <label>List<select name="tier">${opt([['B', 'Together'], ['B?', 'Test together'], ['M', 'Solo'], ['T', 'Tristan’s queue'], ['W', 'Store picks']], 'B')}</select></label>
       <label>Energy<select name="energy">${opt([['', 'Not set'], ['light', 'Light night'], ['dense', 'Dense night'], ['heavy', 'Heavy token']], 'dense')}</select></label>
       <label>Shelf<input name="section" list="sections" placeholder="e.g. Dense nights"></label>${sectionList()}
       <label>Pitch for Tristan<textarea name="pitch" rows="3" placeholder="Optional"></textarea></label>

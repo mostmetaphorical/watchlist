@@ -41,7 +41,7 @@ p { margin: 0 0 .7em; }
 /* the night picker: ticket stubs */
 .night { background: var(--chrome); color: var(--chrome-ink); border-radius: var(--r); padding: 14px 12px 12px; margin-bottom: 12px; }
 .night-q { font: 800 1.35rem var(--display); margin: 0 2px 10px; }
-.night-opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.night-opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .night-opts button { --c: var(--chrome-ink); position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 62px; padding: 8px 6px 7px 9px;
   background: color-mix(in srgb, var(--c) 16%, transparent); color: var(--chrome-ink); border: 0; border-left: 5px solid var(--c); border-radius: 3px 8px 8px 3px; font: inherit; text-align: left; cursor: pointer; }
 .night-opts button[data-energy=light] { --c: #4cc48d; } .night-opts button[data-energy=dense] { --c: #7ba2ff; }
@@ -140,7 +140,7 @@ textarea { resize: vertical; line-height: 1.45; }
 .login { max-width: 460px; margin: 8vh auto 0; } .login h1 { font-size: 2.8rem; margin-bottom: 10px; } .login details { margin-top: 18px; }
 
 /* bottom nav + sheet + toast */
-#nav { position: fixed; inset: auto 0 0 0; z-index: 5; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--chrome); padding-bottom: env(safe-area-inset-bottom); }
+#nav { position: fixed; inset: auto 0 0 0; z-index: 5; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--chrome); padding-bottom: env(safe-area-inset-bottom); }
 #nav[hidden] { display: none; }
 #nav a { color: var(--chrome-ink); text-decoration: none; text-align: center; font: 800 .86rem var(--display); padding: 20px 2px 18px; border-top: 4px solid transparent; opacity: .72; }
 #nav a[aria-current] { opacity: 1; border-top-color: var(--bulb); color: var(--bulb); }

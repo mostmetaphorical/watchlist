@@ -61,6 +61,7 @@ function render() {
     case 'together': html = UI.together(ui); break;
     case 'solo': html = UI.solo(ui); break;
     case 'tristan': html = UI.tristan(ui); break;
+    case 'store': html = UI.store(ui); break;
     case 'school':
       if (r.arg) { html = UI.volume(r.arg, undefined); getVolume(Number(r.arg)).then(t => { if (route().arg === r.arg && route().name === 'school') view.innerHTML = UI.volume(r.arg, t); }); html = UI.leader(); }
       else { if (!vols) loadVolumes(); html = UI.school(ui, vols || []); }
@@ -84,7 +85,7 @@ function render() {
   view.innerHTML = html;
   if (key !== lastRoute) { window.scrollTo(0, 0); view.focus({ preventScroll: true }); } else window.scrollTo(0, y);
   lastRoute = key;
-  const tab = ['solo', 'tristan', 'school', 'more'].includes(r.name) ? r.name : ['search', 'add', 'watched', 'unsorted', 'review', 'settings'].includes(r.name) ? 'more' : r.name === 'together' ? 'together' : null;
+  const tab = ['solo', 'school'].includes(r.name) ? r.name : r.name === 'together' ? 'together' : ['tristan', 'store', 'search', 'add', 'watched', 'unsorted', 'review', 'settings'].includes(r.name) ? 'more' : null;
   nav.querySelectorAll('a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === tab));
   if (r.name === 'search') { const q = $('#q'); if (q && document.activeElement !== q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   document.title = (r.name === 't' && title(r.arg)?.title ? title(r.arg).title + ' — ' : '') + 'Film School';
@@ -97,6 +98,8 @@ async function save(mutate, message, done) {
   try { await saveCuration(mutate, message); toast(done || 'Saved'); } catch (e) { toast(e.message || 'Couldn’t save', true); }
 }
 const name = (id) => title(id)?.title || id;
+const SECTION_FOR = (d) => d.tier === 'B?' ? 'Test together' : d.tier === 'T' ? 'Tristan’s holiday queue' : d.tier === 'W' ? 'In-store play'
+  : d.tier === 'M' ? 'Priority queue' : ({ light: 'Light nights', dense: 'Dense nights', heavy: 'Heavy tokens' }[d.energy] || 'Dense nights');
 const entryRef = (cur, id, i) => cur.entries.filter(e => e.t === id)[i];
 
 // ---------------------------------------------------------------- clicks
@@ -154,7 +157,7 @@ document.addEventListener('submit', async (ev) => {
   else if (kind === 'search') { ui.q = d.q; render(); }
   else if (kind === 'entry') {
     const i = f.dataset.i === '' ? null : Number(f.dataset.i);
-    const fallback = d.tier === 'B?' ? 'Test together' : d.tier === 'T' ? 'Tristan’s holiday queue' : d.tier === 'M' ? 'Priority queue' : ({ light: 'Light nights', dense: 'Dense nights', heavy: 'Heavy tokens' }[d.energy] || 'Dense nights');
+    const fallback = SECTION_FOR(d);
     const vals = clean({ tier: d.tier, energy: d.energy, section: d.section.trim() || fallback, status: d.status, note: d.note.trim(), star: !!d.star });
     save(cur => {
       if (i === null) cur.entries.push({ t: id, ...vals, order: Math.max(0, ...cur.entries.map(e => e.order || 0)) + 1 });
@@ -187,7 +190,7 @@ document.addEventListener('submit', async (ev) => {
   }
   else if (kind === 'add') {
     const year = /^\d{4}$/.test(d.year) ? Number(d.year) : null, nid = newTitleId(d.title.trim(), year);
-    const fallback = d.tier === 'B?' ? 'Test together' : d.tier === 'T' ? 'Tristan’s holiday queue' : d.tier === 'M' ? 'Priority queue' : ({ light: 'Light nights', dense: 'Dense nights', heavy: 'Heavy tokens' }[d.energy] || 'Dense nights');
+    const fallback = SECTION_FOR(d);
     await save(cur => {
       if ((cur.added ||= []).some(a => a.id === nid)) return;
       cur.added.push(clean({ id: nid, title: d.title.trim(), year, kind: d.kind }));

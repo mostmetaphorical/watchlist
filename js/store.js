@@ -55,6 +55,7 @@ export function open(e) {
   if (e.status === 'done' || e.status === 'dropped') return false;
   if (e.status === 'ongoing') return true;
   const s = seen(e.t);
+  if (e.tier === 'W') return true; // store picks are a programme, not a watchlist
   if (e.tier === 'B' || e.tier === 'B?') return !s.together;
   if (e.tier === 'T') return !s.tristan;
   return !s.meta;
