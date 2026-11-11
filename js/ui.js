@@ -426,10 +426,10 @@ export function addForm() {
       <p class="hint">The poster, credits and links are looked up on TMDB within a few minutes.</p>
     </form>`;
 }
-export function settings(auth, theme) {
+export function settings(auth, build) {
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Settings</h1></header>
     <h2>Data</h2>
-    <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd></dl>
+    <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd><dt>App version</dt><dd>${esc(build || '—')}</dd></dl>
     <div class="actions left"><button class="btn ghost" data-act="reload">Reload data</button><button class="btn ghost danger" data-act="signout">Sign out on this device</button></div>
     <p class="hint">Signing out removes the token and the offline copy from this device only.</p>`;
 }

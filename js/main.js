@@ -4,6 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
+const BUILD = '2026-11-11.5';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -78,7 +79,7 @@ function render() {
     case 'watched': html = UI.watched(); break;
     case 'unsorted': html = UI.unsorted(); break;
     case 'review': html = UI.review(); break;
-    case 'settings': html = UI.settings(auth, ui.theme); break;
+    case 'settings': html = UI.settings(auth, BUILD); break;
     default: html = UI.together(ui);
   }
   const y = window.scrollY;
