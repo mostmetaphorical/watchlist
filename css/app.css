@@ -104,8 +104,6 @@ select, input, textarea { font: inherit; color: var(--ink); background: var(--ca
 details.intro { background: var(--card); border-radius: var(--r); padding: 4px 14px; margin: 0 0 14px; } details.intro summary { padding: 10px 0; font-weight: 700; cursor: pointer; }
 .lbline { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
 .review { border-left: 3px solid var(--line); padding-left: 12px; }
-.also h3 { margin: 12px 0 4px; color: var(--ink); font-weight: 800; } .also h3 span { color: var(--soft); font: 400 .86rem var(--body); }
-.also ul { margin: 0; padding-left: 1.1em; } .also li { margin: 3px 0; } .also-meta { color: var(--soft); font-size: .86rem; margin-right: 4px; }
 .credits { margin: 0; display: grid; gap: 8px; } .credit { display: grid; grid-template-columns: 110px 1fr; gap: 8px; }
 .credit dt { color: var(--soft); font-size: .9rem; } .credit dd { margin: 0; } .as { color: var(--soft); font-size: .86rem; }
 .linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--soft); text-decoration: underline; cursor: pointer; }
@@ -226,7 +224,7 @@ textarea { resize: vertical; line-height: 1.45; }
 :root[data-theme=luv] h1 { color: var(--bulb); text-shadow: 0 0 14px rgb(61 255 122 / .55); }
 :root[data-theme=luv] .night { border: 2px solid var(--bulb); box-shadow: 0 0 18px rgb(61 255 122 / .35), inset 0 0 18px rgb(61 255 122 / .12); }
 :root[data-theme=luv] .row, :root[data-theme=luv] .menu a, :root[data-theme=luv] .placement { border: 1px solid var(--line); border-left: 5px solid var(--c, var(--line)); }
-:root[data-theme=luv] .pitch { transform: rotate(-1deg); border-radius: 18px; } :root[data-theme=luv] .star { -webkit-text-stroke: 0; }
+:root[data-theme=luv] .pitch { border-radius: 14px; } :root[data-theme=luv] .star { -webkit-text-stroke: 0; }
 :root[data-theme=luv] #nav { border-top: 1px solid var(--line); }
 .note-more { margin: 10px 0 14px; font-size: .9rem; }
 .note-more a { color: var(--bulb); }
@@ -243,3 +241,11 @@ textarea { resize: vertical; line-height: 1.45; }
 :root .view-head h1::after { content: ""; display: block; height: 3px; margin-top: 10px; border-radius: 3px; background: var(--bulb); box-shadow: 0 0 10px var(--bulb), 0 0 22px color-mix(in srgb, var(--bulb) 60%, transparent); }
 .shelf[data-night] > summary { border-top: none; }
 .shelf[data-night] > summary h2 { border-left: 6px solid var(--c); padding-left: 8px; }
+
+/* more like this: one tidy row of posters */
+.similar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 8px; margin-top: 10px; }
+.similar a { display: grid; gap: 4px; text-decoration: none; min-width: 0; }
+.similar .poster { width: 100%; border-radius: 5px; }
+.similar span { font: 800 .72rem/1.2 var(--display); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+@media (max-width: 430px) { .similar { grid-template-columns: repeat(4, 1fr); } .similar a:nth-child(5) { display: none; } }
+.synopsis .prose { max-width: 62ch; }

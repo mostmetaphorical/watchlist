@@ -199,6 +199,34 @@ export function volume(n, text) {
     ${outro ? `<details class="prose intro"><summary>How to use the diary</summary>${md(outro)}</details>` : ''}`;
 }
 
+// Five titles from her own lists that share makers or kind with this one.
+const ROLE_W = { director: 6, creator: 6, writer: 3, composer: 2, cinematographer: 2, producer: 1 };
+function similarTo(t) {
+  const score = new Map();
+  const bump = (id, n) => { if (id !== t.id) score.set(id, (score.get(id) || 0) + n); };
+  for (const c of t.credits || []) {
+    const w = c.r === 'actor' ? ((c.o ?? 9) <= 4 ? 2 : 0) : (ROLE_W[c.r] || 0);
+    if (w) for (const r of IX.person.get(c.p) || []) bump(r.t, w);
+  }
+  const g = new Set(t.genres || []);
+  if (g.size) for (const id of IX.entries.keys()) {
+    const o = title(id); if (!o) continue;
+    const shared = (o.genres || []).filter(x => g.has(x)).length;
+    if (shared) bump(id, Math.min(3, shared * 1.2));
+  }
+  const out = [];
+  for (const [id, base] of score) {
+    const o = title(id), es = entriesOf(id);
+    if (!o || !es.length) continue;
+    let n = base;
+    if ((o.kind || 'film') === (t.kind || 'film')) n += 1;
+    if (es.some(open)) n += 1.5;
+    if (o.poster) n += 0.5;
+    out.push([id, n]);
+  }
+  return out.sort((a, b) => b[1] - a[1] || String(title(a[0]).title).localeCompare(title(b[0]).title)).slice(0, 5).map(x => x[0]);
+}
+
 // ---------------------------------------------------------------- Title page
 export function titlePage(id, ui, note) {
   const t = title(id);
@@ -215,16 +243,11 @@ export function titlePage(id, ui, note) {
   const creditHtml = Object.keys(credits).sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]).map(r =>
     `<div class="credit"><dt>${ROLE[r]}</dt><dd>${credits[r].sort((a, b) => (a.o ?? 0) - (b.o ?? 0)).map(c => `<a href="#/p/${c.p}">${esc(S.people[c.p]?.name || c.p)}</a>${c.c && r === 'actor' ? ` <span class="as">as ${esc(c.c)}</span>` : ''}`).join(', ')}</dd></div>`).join('');
 
-  // "also in your lists" by shared people
-  const seenP = new Set(), links = [];
-  for (const c of [...(t.credits || [])].sort((a, b) => ROLE_RANK[a.r] - ROLE_RANK[b.r] || (a.o ?? 0) - (b.o ?? 0))) {
-    if (seenP.has(c.p) || (c.r === 'actor' && (c.o ?? 0) > 5)) continue;
-    seenP.add(c.p);
-    const others = (IX.person.get(c.p) || []).filter(x => x.t !== t.id && title(x.t));
-    if (others.length) links.push({ p: c.p, r: c.r, others });
-  }
-  const alsoHtml = links.slice(0, 10).map(({ p, r, others }) => `<div class="also"><h3><a href="#/p/${p}">${esc(S.people[p]?.name || p)}</a> <span>${esc((ROLE[r] || r).toLowerCase())} this</span></h3>
-      <ul>${others.slice(0, 8).map(x => { const o = title(x.t); return `<li><a href="#/t/${encodeURIComponent(o.id)}">${esc(o.title)}</a> <span class="also-meta">${esc(o.year || '')}${x.r.filter(rr => rr !== r).length ? ' · ' + esc(x.r.map(rr => ROLE[rr].toLowerCase()).join(', ')) : ''}</span>${marks(o.id)}</li>`; }).join('')}${others.length > 8 ? `<li><a href="#/p/${p}">and ${others.length - 8} more</a></li>` : ''}</ul></div>`).join('');
+  const near = similarTo(t);
+  const similarHtml = near.length >= 3 ? `<section class="block"><h2>More like this</h2>
+    <p class="hint">From your lists, by the people who made it and what it is.</p>
+    <div class="similar">${near.map(id => { const o = title(id);
+      return `<a href="#/t/${encodeURIComponent(o.id)}">${poster(o, 'w185')}<span>${esc(o.title)}</span></a>`; }).join('')}</div></section>` : '';
 
   // film school
   let schoolHtml;
@@ -269,6 +292,7 @@ export function titlePage(id, ui, note) {
       </div>
     </header>
     ${matchHtml}
+    ${t.overview ? `<section class="block synopsis"><h2>What it is</h2><p class="prose">${esc(t.overview)}</p><p class="hint">From TMDB — may contain spoilers for the setup.</p></section>` : ''}
     ${p || tristanish ? `<section class="pitch"><h2>The pitch for Tristan</h2>${p ? `<blockquote>${esc(p)}</blockquote>` : '<p class="hint">No pitch yet.</p>'}<button class="btn ghost small" data-act="edit-pitch" data-id="${esc(t.id)}">${p ? 'Edit pitch' : 'Write a pitch'}</button></section>` : ''}
     <section class="block"><h2>On your lists</h2>
       ${es.length ? `<ul class="placements">${es.map((e, i) => `<li><button class="placement" data-act="edit-entry" data-id="${esc(t.id)}" data-i="${i}" data-energy="${esc(e.energy || (e.tier === 'B?' ? 'test' : ''))}">
@@ -277,18 +301,17 @@ export function titlePage(id, ui, note) {
           ${e.note ? `<em>${esc(e.note)}</em>` : ''}</button></li>`).join('')}</ul>` : '<p class="hint">Not on any list yet.</p>'}
       <button class="btn ghost small" data-act="add-entry" data-id="${esc(t.id)}">Add to a list</button>
     </section>
+    <section class="block school"><h2>Film school</h2>${schoolHtml}</section>
     <section class="block"><h2>Verdicts</h2>
       ${vs.length ? `<ul class="verdicts">${vs.map(v => `<li><button data-act="edit-verdict" data-id="${esc(t.id)}" data-v="${esc(v.id)}"><strong>${esc(VIEWER[v.viewer])}: ${esc(REACTION[v.reaction] || v.reaction)}</strong>${v.note ? `<span>${esc(v.note)}</span>` : ''}${v.date ? `<small>${esc(v.date)}</small>` : ''}</button></li>`).join('')}</ul>` : `<p class="hint">${s.meta ? 'You’ve logged it on Letterboxd, but there’s no verdict here yet.' : 'Nobody’s watched it yet.'}</p>`}
       <button class="btn" data-act="add-verdict" data-id="${esc(t.id)}">Log a verdict</button>
     </section>
-    <section class="block school"><h2>Film school</h2>${schoolHtml}</section>
     ${l || di.length ? `<section class="block"><h2>Your Letterboxd</h2>
       <p class="lbline">${l?.rating ? `<span class="rating">${stars(l.rating)}</span>` : ''}${l?.liked ? '<span>Liked</span>' : ''}${l?.favourite ? '<span>One of your four favourites</span>' : ''}${l?.watched ? `<span>Logged as watched ${esc(l.watched)}</span>` : ''}${l?.watchlist && !l?.watched ? `<span>On your Letterboxd watchlist since ${esc(l.watchlist)}</span>` : ''}</p>
       ${di.map(d => `<div class="diary"><p class="hint">${esc(d.date || d.logged)}${d.rating ? ' — ' + stars(d.rating) : ''}${d.rewatch ? ' — rewatch' : ''}${d.tags?.length ? ' — ' + esc(d.tags.join(', ')) : ''}</p>${d.review ? `<div class="prose review">${md(d.review)}</div>` : ''}</div>`).join('')}
       </section>` : ''}
-    ${alsoHtml ? `<section class="block"><h2>Also in your lists</h2>${alsoHtml}</section>` : ''}
     ${creditHtml ? `<section class="block"><h2>Credits</h2><dl class="credits">${creditHtml}</dl></section>` : ''}
-    ${t.overview ? `<section class="block"><h2>Synopsis</h2><p class="prose">${esc(t.overview)}</p><p class="hint">From TMDB — may contain spoilers for the setup.</p></section>` : ''}
+    ${similarHtml}
     ${t.match !== 'review' && t.match !== 'notfound' && t.kind !== 'standup' ? `<p class="fine"><button class="linkish" data-act="fix-match" data-id="${esc(t.id)}">Wrong film or show? Fix the match</button></p>` : ''}
   </article>`;
 }
