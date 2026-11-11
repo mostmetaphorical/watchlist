@@ -11,7 +11,7 @@ export const STATUS = { queued: 'To watch', ongoing: 'Ongoing', done: 'Done', dr
 const ROLE = { director: 'Directed', creator: 'Created', writer: 'Written', producer: 'Produced', composer: 'Music', cinematographer: 'Cinematography', actor: 'Cast' };
 const ROLE_RANK = { director: 0, creator: 1, writer: 2, producer: 3, cinematographer: 4, composer: 5, actor: 6 };
 
-export const THEMES = [['marquee', 'Marquee', 'Indigo and bulb yellow'], ['vhs', 'Video store', 'Black, white and teal'], ['velvet', 'Velvet', 'Dark oxblood and brass'], ['zine', 'Zine', 'Blue ink and pink']];
+export const THEMES = [['luv', 'Luv Video', 'Black with neon green'], ['marquee', 'Marquee', 'Indigo night and bulb yellow'], ['velvet', 'Velvet', 'Oxblood and brass'], ['zine', 'Zine', 'Midnight blue and pink']];
 let LAYOUT = 'list';
 export const setLayout = (l) => { LAYOUT = l === 'posters' ? 'posters' : 'list'; };
 export function viewToggle() {
@@ -217,7 +217,9 @@ export function titlePage(id, ui, note) {
       }).join('') + `<button class="btn ghost small" data-act="edit-note" data-id="${esc(t.id)}">Edit notes</button>`;
   }
 
-  const matchHtml = t.match === 'review' && t.candidates?.length ? `<section class="block warn-block"><h2>Is this the right ${t.kind === 'series' ? 'show' : 'film'}?</h2>
+  const pendingMatch = S.cur.matchOverrides?.[t.id];
+  const matchHtml = pendingMatch ? `<section class="block ok-block" role="status"><h2>Match saved</h2><p class="hint">${pendingMatch === 'none' ? 'Marked as not on TMDB.' : 'Your choice is saved.'} The poster and details update here by themselves in a few minutes.</p></section>`
+    : t.match === 'review' && t.candidates?.length ? `<section class="block warn-block"><h2>Is this the right ${t.kind === 'series' ? 'show' : 'film'}?</h2>
       <p class="hint">The TMDB lookup wasn’t sure. Pick the right one and the details update on the next lookup run.</p>
       <div class="cands">${t.candidates.map(c => `<button class="cand" data-act="pick-match" data-id="${esc(t.id)}" data-type="${c.type}" data-tmdb="${c.id}">${c.poster ? `<img src="${IMG}w154${esc(c.poster)}" alt="" loading="lazy">` : '<span class="poster ph"></span>'}<span>${esc(c.title)} <em>${esc(c.year || '')}</em> <small>${c.type === 'tv' ? 'series' : 'film'}</small></span></button>`).join('')}</div>
       <button class="btn ghost small" data-act="fix-match" data-id="${esc(t.id)}">None of these</button></section>`
@@ -280,7 +282,7 @@ export function personPage(pid) {
 
 // ---------------------------------------------------------------- More, search, unsorted, watched, review
 export function more() {
-  const review = S.titles.filter(t => t.match === 'review' || t.match === 'notfound').length;
+  const review = S.titles.filter(t => (t.match === 'review' || t.match === 'notfound') && !S.cur.matchOverrides?.[t.id]).length;
   const unsorted = unsortedIds().length;
   return `<header class="view-head"><h1>More</h1>${syncNote()}</header>
     <nav class="menu">
@@ -338,8 +340,9 @@ export function watched() {
     <section class="group"><h2>Recent diary</h2><div class="rows">${(S.lb?.diary || []).slice(0, 25).map(d => row(d.t, { pitch: false })).join('')}</div></section>`;
 }
 export function review() {
-  const list = S.titles.filter(t => t.match === 'review' || t.match === 'notfound');
-  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Check matches</h1></header>
+  const pend = S.cur.matchOverrides || {}, waiting = Object.keys(pend).length;
+  const list = S.titles.filter(t => (t.match === 'review' || t.match === 'notfound') && !pend[t.id]);
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Check matches</h1></header>${waiting ? `<p class="hint" role="status">${waiting} saved and updating. ${list.length} left to check.</p>` : ''}
     <p class="lede">The TMDB lookup wasn’t sure about these. Open one to pick the right film or show.</p>
     <div class="rows">${list.map(t => row(t.id, { entry: entriesOf(t.id)[0], pitch: false })).join('') || '<p class="hint">Nothing to check.</p>'}</div>`;
 }
@@ -407,7 +410,7 @@ export function addForm() {
 }
 export function settings(auth, theme) {
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Look and settings</h1></header>
-    <section class="group"><h2>Look</h2><div class="themes">${THEMES.map(([v, n, d]) => `<button type="button" class="theme-opt" data-act="theme" data-v="${v}" data-theme="${v}" aria-pressed="${(theme || 'marquee') === v}"><span class="sw"><i></i><i></i><i></i></span><strong>${n}</strong><span>${d}</span></button>`).join('')}</div>
+    <section class="group"><h2>Look</h2><div class="themes">${THEMES.map(([v, n, d]) => `<button type="button" class="theme-opt" data-act="theme" data-v="${v}" data-theme="${v}" aria-pressed="${(theme || 'luv') === v}"><span class="sw"><i></i><i></i><i></i></span><strong>${n}</strong><span>${d}</span></button>`).join('')}</div>
     <p class="hint">Saved on this device only.</p></section>
     <h2>Data</h2>
     <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd></dl>

@@ -8,14 +8,15 @@ const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
 // ---------------------------------------------------------------- remembered view options (per device)
-const ui = Object.assign({ theme: 'marquee', layout: 'list', night: 'all', kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
+const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
   (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })());
 ui.spoilers = {}; ui.q = '';
 const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
 
 function applyLook() {
   const r = document.documentElement;
-  if (ui.theme && ui.theme !== 'marquee') r.dataset.theme = ui.theme; else delete r.dataset.theme;
+  if (!UI.THEMES.some(([v]) => v === ui.theme)) ui.theme = 'luv';
+  r.dataset.theme = ui.theme;
   r.dataset.layout = ui.layout; UI.setLayout(ui.layout);
 }
 applyLook();
@@ -200,6 +201,8 @@ document.addEventListener('submit', async (ev) => {
 onChange(render);
 window.addEventListener('hashchange', () => { closeSheet(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && getAuth() && S.loaded && !S.saving) load(); });
+// while a match fix or a new title is waiting for the TMDB lookup, check for the result every 25 seconds
+setInterval(() => { if (getAuth() && S.loaded && !S.saving && !S.syncing && !document.hidden && (Object.keys(S.cur.matchOverrides || {}).length || (S.cur.added || []).length)) load(); }, 25000);
 render();
 if (getAuth()) load();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
