@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.12';
+const BUILD = '2026-11-11.13';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -142,6 +142,7 @@ document.addEventListener('click', async (ev) => {
   else if (a === 'edit-pitch') openSheet(UI.pitchForm(id));
   else if (a === 'edit-note') openSheet(UI.noteForm(id, notes.get(id)?.text));
   else if (a === 'fix-match') openSheet(UI.matchForm(id));
+  else if (a === 'remove-title') openSheet(UI.removeTitleForm(id));
   else if (a === 'close-sheet') closeSheet();
   else if (a === 'remove-entry') { const i = Number(el.closest('form').dataset.i); save(cur => { const e = entryRef(cur, id, i); cur.entries = cur.entries.filter(x => x !== e); }, `Remove ${name(id)} from a list`, 'Removed'); }
   else if (a === 'remove-verdict') { const vid = el.closest('form').dataset.v; save(cur => { cur.verdicts = cur.verdicts.filter(v => v.id !== vid); }, `Delete verdict: ${name(id)}`, 'Deleted'); }
@@ -217,6 +218,15 @@ document.addEventListener('submit', async (ev) => {
     closeSheet();
     try { await saveNote(id, d.text.replace(/\r\n/g, '\n').trimEnd() + '\n', name(id)); notes.set(id, await getNote(id)); render(); toast('Notes saved'); }
     catch (e) { toast(e.message === 'conflict' ? 'These notes changed elsewhere. Reload and try again.' : e.message, true); }
+  }
+  else if (kind === 'remove-title') {
+    const gone = name(id);
+    await save(cur => {
+      cur.entries = cur.entries.filter(e => e.t !== id);
+      delete cur.pitches[id];
+      if (d.verdicts) cur.verdicts = cur.verdicts.filter(v => v.t !== id);
+    }, `Remove ${gone} from the lists`, `${gone} removed`);
+    history.back();
   }
   else if (kind === 'match') {
     const m = d.url.match(/themoviedb\.org\/(movie|tv)\/(\d+)/);

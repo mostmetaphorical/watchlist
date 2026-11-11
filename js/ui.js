@@ -350,7 +350,10 @@ export function titlePage(id, ui, note) {
       </section>` : ''}
     ${creditHtml ? `<section class="block"><h2>Credits</h2><dl class="credits">${creditHtml}</dl></section>` : ''}
     ${similarHtml}
-    ${t.match !== 'review' && t.match !== 'notfound' && t.kind !== 'standup' ? `<p class="fine"><button class="linkish" data-act="fix-match" data-id="${esc(t.id)}">Wrong film or show? Fix the match</button></p>` : ''}
+    <p class="fine">
+      ${t.match !== 'review' && t.match !== 'notfound' && t.kind !== 'standup' ? `<button class="linkish" data-act="fix-match" data-id="${esc(t.id)}">Wrong film or show? Fix the match</button><br>` : ''}
+      ${es.length || p || vs.length ? `<button class="linkish danger" data-act="remove-title" data-id="${esc(t.id)}">Remove ${esc(t.kind === 'series' ? 'this series' : 'this film')} from your lists</button>` : ''}
+    </p>
   </article>`;
 }
 
@@ -480,6 +483,17 @@ export function noteForm(id, text) {
     <p class="hint">Markdown. “After you watch” is hidden behind a spoiler tap.</p>
     <textarea name="text" rows="18">${esc(text || tpl)}</textarea>
     <div class="actions"><button class="btn">Save notes</button></div></form>`;
+}
+export function removeTitleForm(id) {
+  const t = title(id), es = entriesOf(id), vs = verdictsOf(id), p = pitchOf(id);
+  return `<form data-form="remove-title" data-id="${esc(id)}">
+    <h2>Remove ${esc(t.title)}?</h2>
+    <p>This takes it off ${es.length === 1 ? 'the list it is on' : `all ${es.length} lists it is on`}${es.length ? ` — ${es.map(e => esc(TIER[e.tier] || e.section)).filter((v, i, a) => a.indexOf(v) === i).join(', ')}` : ''}${p ? ', and deletes the pitch' : ''}.</p>
+    ${vs.length ? `<label class="check"><input type="checkbox" name="verdicts"> Also delete ${vs.length} verdict${vs.length > 1 ? 's' : ''} (${vs.map(v => esc(VIEWER[v.viewer])).join(', ')})</label>
+      <p class="hint">Verdicts are your record of what you watched and what you thought. Leave this unticked to keep them.</p>` : ''}
+    <p class="hint">The title itself stays in your data, so it can be added again later. Letterboxd history is untouched.</p>
+    <div class="actions"><button type="button" class="btn ghost" data-act="close-sheet">Keep it</button><button class="btn danger-solid">Remove</button></div>
+  </form>`;
 }
 export function matchForm(id) {
   return `<form data-form="match" data-id="${esc(id)}"><h2>Fix the match</h2>

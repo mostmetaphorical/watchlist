@@ -284,3 +284,5 @@ textarea { resize: vertical; line-height: 1.45; }
 .shelf.sub > summary { border-top: none; padding: 14px 0 4px; margin-left: 0; }
 .shelf.sub > summary h2 { font: 500 1rem var(--display); color: var(--soft); text-transform: none; letter-spacing: 0; }
 @media (prefers-reduced-motion: reduce) { .shelf > summary::before { transition: none; } }
+.linkish.danger { color: var(--heavy); }
+.btn.danger-solid { background: var(--heavy); border-color: var(--heavy); color: #fff; }
