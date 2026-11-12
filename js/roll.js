@@ -4,7 +4,7 @@ import { S, title, open, pitchOf } from './store.js';
 import { esc } from './md.js';
 import { onDisk, atWlv, availMarks } from './avail.js';
 import { face, randomInt } from './dice.js';
-import { poster, runtime, playedOn, TIER, ENERGY } from './ui.js';
+import { poster, runtime, playedOn, TIER, ENERGY } from './parts.js';
 
 // Who it's for. Each audience is a set of list tiers.
 export const AUDIENCES = [
