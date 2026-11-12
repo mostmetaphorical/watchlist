@@ -446,8 +446,9 @@ export function incoming(ui) {
 function rentRow(e, i) {
   const t = title(e.t); if (!t) return '';
   const at = e.wlv === 'yes';
+  // The note is the stock line, which the footer already shows.
   return `<div class="irow${e.rented ? ' is-played' : ''}">
-    ${row(e.t, { entry: e, marks: false })}
+    ${row(e.t, { entry: { ...e, note: undefined }, marks: false })}
     <div class="irow-foot">
       <span class="suggest">${e.rented ? `Rented ${esc(e.rented)}` : esc(e.note || (at ? 'In stock' : 'Stock not confirmed'))}${e.shelf ? ` \u00b7 ${esc(e.shelf)}` : ''}</span>
       <span class="irow-acts">

@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.16';
+const BUILD = '2026-11-11.17';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
