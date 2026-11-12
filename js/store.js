@@ -10,9 +10,9 @@ import { getAuth, readFile, writeFile, GitHubError } from './gh.js';
 // Drawing first and filling in after is the difference between a 6 MB wait and
 // a 1.5 MB one on a phone.
 const CORE = { titles: 'data/titles.json', curation: 'data/curation.json', letterboxd: 'data/letterboxd.json' };
-// Radarr and We Luv Video availability are optional: they appear once the data
+// Radarr, Sonarr and We Luv Video availability are optional: they appear once the data
 // repo's GitHub Actions have run, and the app simply shows less until then.
-const EXTRA = { details: 'data/details.json', people: 'data/people.json', radarr: 'data/radarr.json', wlv: 'data/wlv.json' };
+const EXTRA = { details: 'data/details.json', people: 'data/people.json', radarr: 'data/radarr.json', sonarr: 'data/sonarr.json', wlv: 'data/wlv.json' };
 const FILES = { ...CORE, ...EXTRA };
 
 // Everything loaded, plus the state of the connection.
@@ -24,6 +24,7 @@ export const S = {
   details: null,     // data/details.json: credits and full synopses, merged into titles
   people: {},        // data/people.json: person id -> name, photo, department
   radarr: null,      // data/radarr.json: which films Radarr has (optional file)
+  sonarr: null,      // data/sonarr.json: which series Sonarr has (optional file)
   wlv: null,         // data/wlv.json: which titles We Luv Video stocks (optional file)
   shas: {},          // file name -> git blob sha of the version in memory
   loaded: false,     // the lists can be drawn
@@ -124,6 +125,7 @@ function apply(name, text) {
   else if (name === 'curation') S.cur = j;
   else if (name === 'letterboxd') S.lb = j;
   else if (name === 'radarr') S.radarr = j;
+  else if (name === 'sonarr') S.sonarr = j;
   else if (name === 'wlv') S.wlv = j;
 }
 // details.json is keyed by title id; fold it back onto the records in memory so

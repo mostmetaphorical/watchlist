@@ -4,21 +4,21 @@
 // aren't downloaded twice and the app still opens without a connection.
 //
 // The token and repo name are stored in this browser's localStorage under
-// "fs.auth" as { repo: "owner/name", branch, token }. They are sent only to
+// "wl.auth" as { repo: "owner/name", branch, token }. They are sent only to
 // api.github.com (the content security policy in index.html allows nothing else).
 const API = 'https://api.github.com';
 
 export function getAuth() {
-  try { return JSON.parse(localStorage.getItem('fs.auth') || 'null'); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem('wl.auth') || 'null'); } catch { return null; }
 }
 export function setAuth(a) {
-  try { a ? localStorage.setItem('fs.auth', JSON.stringify(a)) : localStorage.removeItem('fs.auth'); } catch {}
+  try { a ? localStorage.setItem('wl.auth', JSON.stringify(a)) : localStorage.removeItem('wl.auth'); } catch {}
 }
 
 // ---------------------------------------------------------------- tiny IndexedDB key-value store
 // One table of key -> value. Keys are "file:<repo>:<path>", values are
 // { text, sha, etag }. Every call fails soft: no cache just means a slower load.
-const DB = 'film-school', STORE = 'kv';
+const DB = 'watchlist', STORE = 'kv';
 // One connection for the life of the page. It steps aside if another tab (or a
 // sign-out elsewhere) needs to upgrade or delete the database.
 let dbp = null;

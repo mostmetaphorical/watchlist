@@ -1,6 +1,6 @@
 {
-  "name": "Film School",
-  "short_name": "Film School",
+  "name": "Watchlist",
+  "short_name": "Watchlist",
   "description": "Meta and Tristan's watchlists, pitches and film-school notes.",
   "start_url": "./",
   "scope": "./",

@@ -23,7 +23,7 @@ function externalLinks(t) {
 
 // ---------------------------------------------------------------- TMDB match status
 // Shown when the automatic lookup is unsure, failed, or is still to run, or when
-// she has answered and the lookup job hasn't picked the answer up yet.
+// the user has answered and the lookup job hasn't picked the answer up yet.
 function matchBlock(t) {
   const fix = `<div class="actions left">${btn('retry-match', t, 'Search TMDB again')}${btn('fix-match', t, 'Paste a TMDB link')}</div>`;
   const warn = (h2, text, extra) => `<section class="block warn-block"><h2>${h2}</h2><p class="hint">${text}</p>${extra}</section>`;
@@ -117,7 +117,7 @@ function creditsBlock(t) {
     `<div class="credit"><dt>${ROLE[r]}</dt><dd>${byRole[r].sort((a, b) => (a.o ?? 0) - (b.o ?? 0)).map(c => name(c, r)).join(', ')}</dd></div>`).join('')}</dl></section>`;
 }
 
-// Five titles from her own lists that share makers or genres with this one.
+// Five titles from the user's own lists that share makers or genres with this one.
 // Directors and creators count most, then writers, then music and camera; actors
 // only when billed in the top five. Ties go to same kind, still to watch, has a poster.
 const ROLE_WEIGHT = { director: 6, creator: 6, writer: 3, composer: 2, cinematographer: 2, producer: 1 };
@@ -190,7 +190,7 @@ export function titlePage(id, ui, note) {
 }
 
 // ---------------------------------------------------------------- Person
-// Everything on her lists or Letterboxd this person worked on, by role, newest first.
+// Everything on the user's lists or Letterboxd this person worked on, by role, newest first.
 export function personPage(pid, ui) {
   const person = S.people[pid];
   if (!person) return '<header class="view-head"><h1>Unknown person</h1></header>';

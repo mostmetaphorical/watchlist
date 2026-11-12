@@ -3,7 +3,7 @@
 // Each form has data-form="name"; main.js reads it on submit and saves.
 import { IX, title, entriesOf, verdictsOf, pitchOf, today } from './store.js';
 import { esc } from './md.js';
-import { radarrBase } from './avail.js';
+import { SERVER, savedBase, sonarrFromRadarr } from './avail.js';
 import { TIER, ENERGY, REACTION, VIEWER, STATUS, options } from './parts.js';
 
 // The choices shared by "Add to a list" and the Add page.
@@ -89,26 +89,30 @@ export function addForm() {
     </form>`;
 }
 // auth is what gh.js keeps for this device: { repo, branch, token }. Only the
-// token's last six characters are shown.
-export function settings(auth, build, radarrError) {
-  const base = radarrBase();
+// token's last six characters are shown. serverError is a message from the last
+// attempt to save the Radarr and Sonarr addresses.
+export function settings(auth, build, serverError) {
+  const radarr = savedBase('radarr'), sonarr = savedBase('sonarr'), guess = sonarrFromRadarr(radarr);
+  const field = (app, value, placeholder) => `<label>${SERVER[app].name} address<input name="${app}" type="url" inputmode="url" value="${esc(value)}" placeholder="${esc(placeholder)}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>`;
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Settings</h1></header>
-    <h2>Radarr</h2>
-    <form data-form="radarr" class="page-form">
-      <label>Radarr address<input name="url" type="url" inputmode="url" value="${esc(base)}" placeholder="https://radarr.example.com" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
-      ${radarrError ? `<p class="error" role="alert">${esc(radarrError)}</p>` : ''}
-      <div class="actions left"><button class="btn">Save</button>${base ? '<button type="button" class="btn ghost" data-act="radarr-clear">Remove</button>' : ''}</div>
-      <p class="hint">The one you open Radarr with in a browser. Kept on this device only and used just to build “Open in Radarr” links; the app never connects to Radarr. Which films are on disk comes from the weekly sync in the data repo.</p>
+    <h2>Radarr and Sonarr</h2>
+    <form data-form="servers" class="page-form">
+      ${field('radarr', radarr, 'https://radarr.example.com')}
+      ${field('sonarr', sonarr, guess || 'https://sonarr.example.com')}
+      ${guess && !sonarr ? '<p class="hint">Left empty, Sonarr uses the address shown, worked out from Radarr’s.</p>' : ''}
+      ${serverError ? `<p class="error" role="alert">${esc(serverError)}</p>` : ''}
+      <div class="actions left"><button class="btn">Save</button>${radarr || sonarr ? '<button type="button" class="btn ghost" data-act="servers-clear">Remove</button>' : ''}</div>
+      <p class="hint">The ones you open Radarr and Sonarr with in a browser. Kept on this device only and used just to build links; the app never connects to either. What’s on disk comes from the weekly sync in the data repo.</p>
     </form>
     <h2>Data</h2>
     <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd><dt>App version</dt><dd>${esc(build || '—')}</dd></dl>
     <div class="actions left"><button class="btn ghost" data-act="reload">Reload data</button><button class="btn ghost danger" data-act="signout">Sign out on this device</button></div>
-    <p class="hint">Signing out removes the token, the Radarr address and the offline copy from this device only.</p>`;
+    <p class="hint">Signing out removes the token, the Radarr and Sonarr addresses and the offline copy from this device only.</p>`;
 }
 // First screen on a new device. cfg is config.js (the data repo's name).
 export function login(cfg, error) {
   return `<main class="login">
-    <h1>Film School</h1>
+    <h1>Watchlist</h1>
     <p class="lede">Your watchlists live in a private GitHub repo. Connect this device with a token that can read and write it.</p>
     <form data-form="login" class="page-form">
       <label>Data repo<input name="repo" value="${esc(cfg.repo)}" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
@@ -126,7 +130,7 @@ export function login(cfg, error) {
 // When the lists couldn't be loaded. network is true when the connection
 // dropped rather than GitHub saying no, so it doesn't offer to replace the token.
 export function loadFailed(error, network) {
-  return `<main class="login"><h1>Film School</h1><p class="error" role="alert">${esc(error)}</p>
+  return `<main class="login"><h1>Watchlist</h1><p class="error" role="alert">${esc(error)}</p>
     ${network ? '<p class="hint">The lists run to a few megabytes, so a weak signal can cut the download short. On a better connection it should open straight away.</p>' : ''}
     <div class="actions left"><button class="btn" data-act="reload">Try again</button>${network ? '' : '<button class="btn ghost" data-act="signout">Use a different token</button>'}</div>
     ${network ? '<p class="fine"><button class="linkish" data-act="signout">Sign out on this device</button></p>' : ''}</main>`;

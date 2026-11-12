@@ -1,6 +1,6 @@
-# Film School
+# Watchlist
 
-A phone-first web app for two people's watchlists: what to watch together and on what kind of night, what each person watches alone, a self-made film-school curriculum with notes, verdicts after watching, and a dice roll for when nobody can decide.
+A phone-first web app for two people's watchlists: what to watch together and on what kind of night, what each person watches alone, verdicts after watching, where to get each title, and a dice roll for when nobody can decide. A School tab holds a self-made film-school curriculum with notes.
 
 It is a static site with no server and no build step. The lists live as JSON files in a separate, private GitHub repository, which the app reads and writes through GitHub's API using a token stored on each device. This repository holds only the app; it contains none of the data.
 
@@ -11,8 +11,8 @@ It is a static site with no server and no build step. The lists live as JSON fil
 - **Store picks**: films to play on the screens during a shift at a video shop. Tick one when it's played; it comes back after six months.
 - **Rent**: films that can't be downloaded, split by whether the local video shop's catalogue has them.
 - **Incoming**: picks found by an automated monthly pass wait here until kept or binned.
-- **Film school**: volumes of ten films with spoiler-light notes before watching, full notes after, and diary questions.
-- **Title pages**: poster, credits, links to Letterboxd, IMDb and TMDB, where to get it, the one-line pitch, notes, verdicts, your Letterboxd history, and similar titles from your own lists.
+- **School**: film-school volumes of ten films with spoiler-light notes before watching, full notes after, and diary questions.
+- **Title pages**: poster, credits, links to Letterboxd, IMDb and TMDB, where to get it (Radarr for films, Sonarr for series, the video shop), the one-line pitch, notes, verdicts, your Letterboxd history, and similar titles from your own lists.
 - **Watched**: once a title's audience has seen it (a verdict, or a Letterboxd log), it drops to a collapsed Watched group at the bottom of its list.
 - **Roll the dice**: a random pick from any list, narrowed by night, length, films or series, and whether it's on disk or at the shop.
 - Works offline once opened, and can be installed to a phone's home screen.
@@ -30,7 +30,7 @@ Those are the only two places the app connects to; the content security policy i
 - **Signing in.** On first open the app asks for the data repo's name and a GitHub token. Both are kept in that browser's localStorage and are sent only to api.github.com.
 - **Reading.** Each JSON file is fetched through GitHub's contents API and kept in the browser's IndexedDB with its ETag, so a file that hasn't changed isn't downloaded again and the app opens without a connection. The files the lists need come first; credits, people and availability load behind them.
 - **Saving.** Every change (adding to a list, a verdict, a pitch, ticking a store pick) rewrites `data/curation.json` and commits it, one commit per change with a readable message. If the file changed elsewhere in the meantime, GitHub refuses the write, and the app fetches the new copy and applies the same change to it, so two phones never overwrite each other.
-- **Everything else** (looking titles up on TMDB, importing a Letterboxd export, checking Radarr, checking the shop's catalogue, finding new releases) is done by scripts and GitHub Actions in the data repo, not here. The app only reads what they write.
+- **Everything else** (looking titles up on TMDB, importing a Letterboxd export, checking Radarr and Sonarr, checking the shop's catalogue, finding new releases) is done by scripts and GitHub Actions in the data repo, not here. The app only reads what they write.
 
 ## Setting up your own copy
 
@@ -56,6 +56,7 @@ data/letterboxd.json   optional  ratings, diary and lists from a Letterboxd expo
 data/details.json      optional  credits and full synopses
 data/people.json       optional  names and photos for the people in credits
 data/radarr.json       optional  which films Radarr has on disk
+data/sonarr.json       optional  which series Sonarr has, and how many episodes are on disk
 data/wlv.json          optional  which titles the video shop stocks
 notes/<title id>.md    optional  film-school notes, one file per title
 volumes/vol-01.md      optional  film-school volumes, numbered from 01
@@ -162,17 +163,21 @@ Letterboxd's own export is a set of CSV files; turning it into this shape, with 
 
 In a credit, `p` is the person's id in `people.json`, `r` the role (`director`, `creator`, `writer`, `producer`, `composer`, `cinematographer` or `actor`), `c` the character and `o` the billing order. They're kept out of `titles.json` because together they're several times its size and only the title, person and search pages need them.
 
-### data/radarr.json and data/wlv.json
+### data/radarr.json, data/sonarr.json and data/wlv.json
 
 ```json
 { "exportedAt": "2026-11-12", "titles": { "the-thing-1982": { "slug": "the-thing-1982", "file": true, "monitored": true } } }
 ```
 
 ```json
+{ "exportedAt": "2026-11-12", "titles": { "spaced": { "slug": "spaced", "monitored": true, "episodes": 14, "files": 7 } } }
+```
+
+```json
 { "checkedAt": "2026-11-01", "titles": { "the-thing-1982": { "checked": "2026-11-01", "items": [ { "slug": "/the-thing-1982", "name": "The Thing", "formats": ["DVD", "Blu-ray"], "total": 2 } ] } } }
 ```
 
-Radarr links are built from the address entered in Settings plus `/movie/<slug>`. The app never connects to Radarr itself; the address only makes the links. Shop links are the shop's address plus the item's `slug`; an item with `total: 0` counts as not stocked. To use a different shop, change `WLV_STORE` in `js/avail.js` and the shop's name in the labels.
+A film or series with a line links to its page: the address entered in Settings plus `/movie/<slug>` (Radarr) or `/series/<slug>` (Sonarr). One without a line isn't in Radarr or Sonarr, and links to the "Add new" page searching for it instead (`/add/new?term=…`: `tmdb:<id>` for Radarr, the title for Sonarr). A Sonarr address left empty in Settings is Radarr's with `radarr` changed to `sonarr`. The app never connects to either; the addresses only make the links. `episodes` is how many episodes Sonarr expects and `files` how many are on disk; a series with any counts as on disk for the dice. Shop links are the shop's address plus the item's `slug`; an item with `total: 0` counts as not stocked. To use a different shop, change `WLV_STORE` in `js/avail.js` and the shop's name in the labels.
 
 ### notes and volumes
 
@@ -227,11 +232,11 @@ How to use the diary…
 | `js/gh.js` | Talks to the GitHub API and keeps the offline copy in IndexedDB |
 | `js/ui.js` | Gathers the five view files below into one import |
 | `js/parts.js` | Shared pieces: rows, posters, shelves, filters, the Watched group, icons |
-| `js/lists.js` | Together, Solo, Store picks, Tristan's queue, Film school |
+| `js/lists.js` | Together, Solo, Store picks, Tristan's queue, School |
 | `js/titlepage.js` | The title page and the person page |
 | `js/more.js` | The More menu, Incoming, Rent, Search, Unsorted, Verdicts, Check matches |
 | `js/forms.js` | Every form, the login page and the loading screen |
-| `js/avail.js` | Radarr and video shop availability, and the Radarr address setting |
+| `js/avail.js` | Radarr, Sonarr and video shop availability, and the Radarr and Sonarr address settings |
 | `js/roll.js` | Roll the dice: which titles qualify, the pick, the page |
 | `js/dice.js` | The dice faces, the tumble, and the sound (made with Web Audio, no sound files) |
 | `js/md.js` | HTML escaping and a small markdown reader for notes |
@@ -244,7 +249,7 @@ Every page is built as a string of HTML by a function that takes the data and re
 ## Privacy and security
 
 - **The data stays in your private repo.** The app is public code with no data in it; the lists are read from the private repo at run time. If the repo you connect turns out to be public, the app warns you.
-- **The token lives on each device**, in the browser's localStorage. Anyone who can use that unlocked browser can use the token, so scope it to the one data repo with only Contents read/write, and give it an expiry. Signing out on a device deletes the token, the Radarr address and the offline copy from it.
+- **The token lives on each device**, in the browser's localStorage. Anyone who can use that unlocked browser can use the token, so scope it to the one data repo with only Contents read/write, and give it an expiry. Signing out on a device deletes the token, the Radarr and Sonarr addresses and the offline copy from it.
 - **Only GitHub and TMDB are contacted.** The security policy forbids scripts, styles, fonts or connections from anywhere else, and the page sends no referrer. Poster images come from TMDB, which therefore sees the phone's IP address; nothing else is shared with it.
 - **No inline code, no framing.** The app refuses to draw inside another site's frame, so its buttons can't be overlaid by a look-alike page. Links out open in a new tab with `noopener noreferrer`.
 - **Data is escaped.** Titles, notes and anything else from the data repo are escaped before display; notes support a limited markdown with `http(s)` links only.

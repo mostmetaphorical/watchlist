@@ -9,25 +9,39 @@ import { S, AUDIENCE, onChange, load, saveCuration, title, seen, getNote, saveNo
 import * as UI from './ui.js';
 import * as Roll from './roll.js';
 import { tumble, rattle } from './dice.js';
-import { setRadarrBase } from './avail.js';
+import { setServers, forgetServers } from './avail.js';
 import { frontMatter } from './md.js';
 
 // Shown in Settings. Bump it, and CACHE in sw.js, with every release.
-const BUILD = '2026-11-12.6';
+const BUILD = '2026-11-12.7';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
+// ---------------------------------------------------------------- settings saved by older versions
+// Settings used to be kept under "fs." names and the offline copy in a database
+// called "film-school". Carry the settings over once and drop the old copy.
+try {
+  if (['auth', 'ui', 'radarr'].some(k => localStorage.getItem('fs.' + k) !== null)) {
+    for (const k of ['auth', 'ui', 'radarr']) {
+      const old = localStorage.getItem('fs.' + k);
+      if (old !== null && localStorage.getItem('wl.' + k) === null) localStorage.setItem('wl.' + k, old);
+      localStorage.removeItem('fs.' + k);
+    }
+    indexedDB.deleteDatabase('film-school');
+  }
+} catch {}
+
 // ---------------------------------------------------------------- view options, remembered per device
-// Kept in localStorage as "fs.ui". Spoilers opened and the search box are for this visit only.
+// Kept in localStorage as "wl.ui". Spoilers opened and the search box are for this visit only.
 const PER_VISIT = new Set(['spoilers', 'q', 'rollOptsOpen']);
 const ui = Object.assign(
   { layout: 'list', night: 'all', openShelves: {}, kind: 'all', sort: 'curated',
     rollAud: 'together', rollNight: 'any', rollKind: 'all', rollLen: 'any', rollWhere: 'any', rollSound: true },
-  (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })(),
+  (() => { try { return JSON.parse(localStorage.getItem('wl.ui') || '{}'); } catch { return {}; } })(),
   { spoilers: {}, q: '' });
 delete ui.theme; delete ui.showSeen;   // options from older versions
 const remember = () => {
-  try { localStorage.setItem('fs.ui', JSON.stringify(Object.fromEntries(Object.entries(ui).filter(([k]) => !PER_VISIT.has(k))))); } catch {}
+  try { localStorage.setItem('wl.ui', JSON.stringify(Object.fromEntries(Object.entries(ui).filter(([k]) => !PER_VISIT.has(k))))); } catch {}
 };
 function applyLayout() {
   document.documentElement.dataset.layout = ui.layout;
@@ -35,7 +49,7 @@ function applyLayout() {
 }
 applyLayout();
 
-let loginError = null, radarrError = null, lastRoute = null, vols = null, pendingRoll = false, rolling = false;
+let loginError = null, serverError = null, lastRoute = null, vols = null, pendingRoll = false, rolling = false;
 let toastTimer, searchTimer;
 const notes = new Map();   // title id -> its film-school note, null if none, undefined while loading
 
@@ -43,8 +57,8 @@ const notes = new Map();   // title id -> its film-school note, null if none, un
 // Coming back from a film lands where you left the list. Film and person pages
 // always open at the top. Kept in sessionStorage, so it lasts until the tab closes.
 const LISTS = new Set(['together', 'solo', 'tristan', 'store', 'incoming', 'rent', 'school', 'more', 'watched', 'unsorted', 'review', 'search', 'roll']);
-const scrollPos = new Map(Object.entries((() => { try { return JSON.parse(sessionStorage.getItem('fs.scroll') || '{}'); } catch { return {}; } })()));
-const keepScroll = () => { try { sessionStorage.setItem('fs.scroll', JSON.stringify(Object.fromEntries(scrollPos))); } catch {} };
+const scrollPos = new Map(Object.entries((() => { try { return JSON.parse(sessionStorage.getItem('wl.scroll') || '{}'); } catch { return {}; } })()));
+const keepScroll = () => { try { sessionStorage.setItem('wl.scroll', JSON.stringify(Object.fromEntries(scrollPos))); } catch {} };
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 // Hold the position for a few frames while posters settle, but give way the moment the person scrolls.
 function restoreScroll(want) {
@@ -127,7 +141,7 @@ const VIEWS = {
   incoming: () => UI.incoming(ui),
   rent: () => UI.rent(ui),
   review: () => UI.review(),
-  settings: () => UI.settings(getAuth(), BUILD, radarrError),
+  settings: () => UI.settings(getAuth(), BUILD, serverError),
   roll: () => Roll.view(ui),
 };
 // Which button in the bottom bar is lit. Pages reached from More light More;
@@ -143,7 +157,7 @@ function own(table, key) { return Object.hasOwn(table, key) ? table[key] : undef
 const framed = (() => { try { return window.top !== window.self; } catch { return true; } })();
 
 function render() {
-  if (framed) { nav.hidden = true; view.textContent = 'Film School only opens in its own window.'; return; }
+  if (framed) { nav.hidden = true; view.textContent = 'The watchlist only opens in its own window.'; return; }
   if (!getAuth()) { nav.hidden = true; view.innerHTML = UI.login(CONFIG, loginError); return; }
   if (!S.loaded) {
     nav.hidden = true;
@@ -165,7 +179,7 @@ function render() {
   const tab = tabOf(r.name);
   nav.querySelectorAll('a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === tab));
   if (r.name === 'search') { const q = $('#q'); if (q && document.activeElement !== q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
-  document.title = (r.name === 't' && title(r.arg)?.title ? title(r.arg).title + ' — ' : '') + 'Film School';
+  document.title = (r.name === 't' && title(r.arg)?.title ? title(r.arg).title + ' — ' : '') + 'Watchlist';
   if (r.name === 'roll' && pendingRoll) { pendingRoll = false; doRoll(); }
 }
 
@@ -277,9 +291,9 @@ const ACTIONS = {
   'roll-opts': (el) => { ui.rollOptsOpen = !el.parentElement.open; },
 
   // Settings
-  'radarr-clear': () => { setRadarrBase(''); radarrError = null; render(); toast('Radarr address removed'); },
+  'servers-clear': () => { forgetServers(); serverError = null; render(); toast('Addresses removed'); },
   reload: async () => { S.error = null; await load(); toast(S.error ? S.error : 'Up to date', !!S.error); },
-  signout: async () => { setAuth(null); await cacheClear(); try { localStorage.removeItem('fs.radarr'); } catch {} location.hash = ''; location.reload(); },
+  signout: async () => { setAuth(null); await cacheClear(); forgetServers(); location.hash = ''; location.reload(); },
 };
 function setMatch(id, value, what, done) {
   save(cur => { (cur.matchOverrides ||= {})[id] = value; }, `${what}: ${name(id)} [enrich]`, done);
@@ -334,9 +348,10 @@ const FORMS = {
     } catch (e) { loginError = e.message; render(); }
   },
   search(f, d) { ui.q = d.q; render(); },
-  radarr(f, d) {
-    try { const base = setRadarrBase(d.url); radarrError = null; toast(base ? 'Radarr address saved' : 'Radarr address removed'); }
-    catch (e) { radarrError = e.message; }
+  // Radarr and Sonarr addresses: both are saved, or neither if one is wrong.
+  servers(f, d) {
+    try { const saved = setServers(d); serverError = null; toast(saved.radarr || saved.sonarr ? 'Addresses saved' : 'Addresses removed'); }
+    catch (e) { serverError = e.message; }
     render();
   },
   // Add to a list, or edit a placement (data-i is which of the title's entries).

@@ -123,7 +123,7 @@ export function search(q) {
 }
 
 // ---------------------------------------------------------------- Unsorted
-// On her Letterboxd watchlist or lists, unwatched, and on no shelf here yet.
+// On the user's Letterboxd watchlist or lists, unwatched, and on no shelf here yet.
 export function unsortedIds() {
   const ids = new Set();
   for (const [id, f] of Object.entries(S.lb?.films || {})) if (f.watchlist && !f.watched) ids.add(id);

@@ -1,7 +1,7 @@
 // Caches the app itself so it opens offline. Your data is cached separately
 // (in IndexedDB, by js/gh.js) and never by this file.
 // With every release: bump CACHE, and add any new file to SHELL.
-const CACHE = 'film-school-shell-v25';
+const CACHE = 'watchlist-shell-v26';
 const SHELL = ['./', 'index.html', 'config.js', 'css/app.css', 'js/main.js', 'js/store.js', 'js/gh.js', 'js/ui.js', 'js/parts.js', 'js/lists.js', 'js/titlepage.js', 'js/more.js', 'js/forms.js', 'js/md.js', 'js/avail.js', 'js/roll.js', 'js/dice.js', 'fonts/inter.woff', 'fonts/inter-italic.woff', 'fonts/poppins-500.woff', 'fonts/poppins-800.woff', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
