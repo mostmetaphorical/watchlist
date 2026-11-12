@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.15';
+const BUILD = '2026-11-11.16';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -25,7 +25,7 @@ let loginError = null, lastRoute = null, vols = null;
 
 // Remember how far down each list was scrolled, so coming back from a film lands where you left off.
 // Film and person pages always open at the top.
-const LISTS = new Set(['together', 'solo', 'tristan', 'store', 'school', 'more', 'watched', 'unsorted', 'review', 'search']);
+const LISTS = new Set(['together', 'solo', 'tristan', 'store', 'incoming', 'rent', 'school', 'more', 'watched', 'unsorted', 'review', 'search']);
 const scrollPos = new Map(Object.entries((() => { try { return JSON.parse(sessionStorage.getItem('fs.scroll') || '{}'); } catch { return {}; } })()));
 const keepScroll = () => { try { sessionStorage.setItem('fs.scroll', JSON.stringify(Object.fromEntries(scrollPos))); } catch {} };
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -99,6 +99,8 @@ function render() {
     case 'add': html = UI.addForm(); break;
     case 'watched': html = UI.watched(ui); break;
     case 'unsorted': html = UI.unsorted(ui); break;
+    case 'incoming': html = UI.incoming(ui); break;
+    case 'rent': html = UI.rent(ui); break;
     case 'review': html = UI.review(); break;
     case 'settings': html = UI.settings(auth, BUILD); break;
     default: html = UI.together(ui);
@@ -111,7 +113,7 @@ function render() {
     view.focus({ preventScroll: true });
   } else window.scrollTo(0, y);
   lastRoute = key;
-  const tab = ['solo', 'school'].includes(r.name) ? r.name : r.name === 'together' ? 'together' : ['tristan', 'store', 'search', 'add', 'watched', 'unsorted', 'review', 'settings'].includes(r.name) ? 'more' : null;
+  const tab = ['solo', 'school'].includes(r.name) ? r.name : r.name === 'together' ? 'together' : ['tristan', 'store', 'incoming', 'rent', 'search', 'add', 'watched', 'unsorted', 'review', 'settings'].includes(r.name) ? 'more' : null;
   nav.querySelectorAll('a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === tab));
   if (r.name === 'search') { const q = $('#q'); if (q && document.activeElement !== q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   document.title = (r.name === 't' && title(r.arg)?.title ? title(r.arg).title + ' — ' : '') + 'Film School';
@@ -124,7 +126,7 @@ async function save(mutate, message, done) {
   try { await saveCuration(mutate, message); toast(done || 'Saved'); } catch (e) { toast(e.message || 'Couldn’t save', true); }
 }
 const name = (id) => title(id)?.title || id;
-const SECTION_FOR = (d) => d.tier === 'B?' ? 'Test together' : d.tier === 'T' ? 'Tristan’s holiday queue' : d.tier === 'W' ? 'In-store play'
+const SECTION_FOR = (d) => d.tier === 'R' ? 'To rent' : d.tier === 'C' ? 'Coming soon' : d.tier === 'B?' ? 'Test together' : d.tier === 'T' ? 'Tristan’s holiday queue' : d.tier === 'W' ? 'In-store play'
   : d.tier === 'M' ? 'Priority queue' : ({ light: 'Light nights', dense: 'Dense nights', heavy: 'Heavy tokens' }[d.energy] || 'Dense nights');
 const entryRef = (cur, id, i) => cur.entries.filter(e => e.t === id)[i];
 
@@ -155,6 +157,29 @@ document.addEventListener('click', async (ev) => {
   else if (a === 'drop-store') {
     const t = el.dataset.t;
     save(cur => { cur.entries = cur.entries.filter(e => !(e.t === t && e.tier === 'W')); }, `Remove from store picks: ${name(t)}`, 'Removed');
+  }
+  else if (a === 'keep-auto') {
+    const t = el.dataset.t, i = Number(el.dataset.i);
+    save(cur => { const e = cur.entries[i]; if (e && e.t === t) { delete e.auto; delete e.found; } }, `Keep ${name(t)}`, 'Kept');
+  }
+  else if (a === 'bin-auto') {
+    const t = el.dataset.t, i = Number(el.dataset.i), tm = title(t)?.tmdb;
+    save(cur => {
+      const e = cur.entries[i]; if (!e || e.t !== t) return;
+      cur.entries = cur.entries.filter(x => x !== e);
+      // Remember it so the monthly pass never suggests it again.
+      (cur.declined ||= []).push({ t, title: name(t), ...(tm ? { tmdb: tm } : {}), date: today() });
+    }, `Bin ${name(t)}`, 'Binned. It won\u2019t come back.');
+  }
+  else if (a === 'rent' || a === 'unrent') {
+    const t = el.dataset.t, i = Number(el.dataset.i), on = a === 'rent';
+    save(cur => { const e = cur.entries[i]; if (e && e.t === t) { if (on) e.rented = today(); else delete e.rented; } },
+      `${on ? 'Rented' : 'Back on the rent list'}: ${name(t)}`, on ? 'Marked rented' : 'Back on the list');
+  }
+  else if (a === 'drop-rent') {
+    const t = el.dataset.t, i = Number(el.dataset.i);
+    save(cur => { const e = cur.entries[i]; if (e && e.t === t && e.tier === 'R') cur.entries = cur.entries.filter(x => x !== e); },
+      `Remove from rent list: ${name(t)}`, 'Removed');
   }
   else if (a === 'retry-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'retry'; }, `Search TMDB again: ${name(id)} [enrich]`, 'Searching again. Check back in a few minutes.');
   else if (a === 'no-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'none'; }, `Mark as not on TMDB: ${name(id)} [enrich]`, 'Saved');

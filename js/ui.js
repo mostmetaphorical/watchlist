@@ -4,7 +4,9 @@ import { esc, md, frontMatter, noteSections, splitQuestions } from './md.js';
 
 export const IMG = 'https://image.tmdb.org/t/p/';
 export const ENERGY = { light: 'Light night', dense: 'Dense night', heavy: 'Heavy token' };
-export const TIER = { B: 'Together', 'B?': 'Test together', M: 'Solo', T: 'Tristan’s queue', W: 'Store picks' };
+export const TIER = { B: 'Together', 'B?': 'Test together', M: 'Solo', T: 'Tristan’s queue', W: 'Store picks', C: 'Coming soon', R: 'Rent' };
+// An entry the monthly pass added is parked until it is kept, so it stays off the shelves.
+export const onShelf = (e) => !e.auto;
 export const REACTION = { favourite: 'All-time favourite', loved: 'Loved it', liked: 'Liked it', mixed: 'Mixed', bounced: 'Bounced off', disliked: 'Disliked', seen: 'Seen' };
 export const VIEWER = { both: 'Together', tristan: 'Tristan', meta: 'You' };
 export const STATUS = { queued: 'To watch', ongoing: 'Ongoing', done: 'Done', dropped: 'Dropped' };
@@ -111,7 +113,7 @@ const NIGHTS = [['all', 'Any night'], ['light', 'Light'], ['dense', 'Dense'], ['
 const GROUPS = [['light', 'Light nights', 'Easy to start, easy to stop.'], ['dense', 'Dense nights', 'Full attention, worth it.'],
   ['heavy', 'Heavy tokens', 'Ration these. Both opt in.'], ['test', 'Test together', 'One episode or twenty minutes, then decide.']];
 export function together(ui) {
-  const all = S.cur.entries.filter(e => e.tier === 'B' || e.tier === 'B?');
+  const all = S.cur.entries.filter(e => onShelf(e) && (e.tier === 'B' || e.tier === 'B?'));
   const vis = visible(all, ui);
   const groupOf = (e) => e.tier === 'B?' ? 'test' : e.energy || 'light';
   const count = (g) => vis.filter(e => g === 'all' || groupOf(e) === g).length;
@@ -156,7 +158,7 @@ export function together(ui) {
 
 // ---------------------------------------------------------------- Solo + Tristan
 export function solo(ui) {
-  const all = S.cur.entries.filter(e => e.tier === 'M');
+  const all = S.cur.entries.filter(e => onShelf(e) && e.tier === 'M');
   const vis = visible(all, ui);
   const order = []; for (const e of all) if (!order.includes(e.section)) order.push(e.section);
   const body = order.map(s => {
@@ -189,7 +191,7 @@ function storeRow(e, played) {
   </div>`;
 }
 export function store(ui) {
-  const all = S.cur.entries.filter(e => e.tier === 'W');
+  const all = S.cur.entries.filter(e => onShelf(e) && e.tier === 'W');
   const kindOk = (e) => ui.kind === 'all' || !ui.kind || (title(e.t)?.kind || 'film') === ui.kind;
   const live = all.filter(e => kindOk(e) && !playedOn(e));
   const done = all.filter(e => kindOk(e) && playedOn(e)).sort((a, b) => String(b.played).localeCompare(String(a.played)));
@@ -210,7 +212,7 @@ export function store(ui) {
 }
 
 export function tristan(ui) {
-  const vis = sortEntries(visible(S.cur.entries.filter(e => e.tier === 'T'), ui), ui);
+  const vis = sortEntries(visible(S.cur.entries.filter(e => onShelf(e) && e.tier === 'T'), ui), ui);
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Tristan’s queue</h1>${syncNote()}</header>
     <p class="lede">For when you’re travelling: universe-loyalty picks and Moffat. Things he’ll enjoy and you won’t.</p>
     ${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('') || empty('His queue is empty.')}</div>`;
@@ -218,7 +220,7 @@ export function tristan(ui) {
 
 // ---------------------------------------------------------------- Film school
 export function school(ui, vols) {
-  const queue = S.cur.entries.filter(e => e.section === 'Film school' && e.note !== 'Volume 1' && !/^Volume \d+/.test(e.note || ''));
+  const queue = S.cur.entries.filter(e => onShelf(e) && e.section === 'Film school' && e.note !== 'Volume 1' && !/^Volume \d+/.test(e.note || ''));
   const vis = sortEntries(visible(queue, ui), ui);
   return `<header class="view-head"><h1>Film school</h1>${syncNote()}</header>
     ${shelf(ui, 'school:volumes', 'Volumes', `<div class="vols">${vols.map(v => `<a class="vol" href="#/school/${v.n}"><span class="vol-n">Vol. ${v.n}</span><span class="vol-t">${esc(v.title)}</span><span class="vol-p">${v.seen} of ${v.films.length} watched</span></a>`).join('') || '<p class="hint">No volumes yet.</p>'}</div>
@@ -379,10 +381,12 @@ const sv = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 const ICON = {
   wolf: sv('<path d="M6.5 3.2 9.8 7.1l2.9-.2L12.1 2.8l3.2 4.4c1.3.8 2.4 1.9 3.1 3.2l3.5 2-2.2 1.6-3.4.3-1.9 2.7-4.8 1.8-3-.4-1.3-2.4c-.6-2.9-.5-5.3.1-7.1.5-1.9 1.3-3 1.8-3.6z"/><circle cx="14.8" cy="10.7" r=".8" fill="currentColor" stroke="none"/>'),
   tape: sv('<path d="M3.5 9.5V19a1 1 0 0 0 1 1h15a1 1 0 0 0 1-1V9.5"/><path d="M2.4 9.5 4.1 5a1 1 0 0 1 .94-.65h13.92a1 1 0 0 1 .94.65l1.7 4.5"/><path d="M9.2 20v-5.6h5.6V20"/>'),
+  inbox: sv('<path d="M12 2.8v8.4m0 0 3-3m-3 3-3-3"/><path d="M3.2 13.6h4.4l1.3 2.2h6.2l1.3-2.2h4.4"/><path d="M3.2 13.6 5.4 6.9a1 1 0 0 1 .95-.7h1.9M21.2 13.6 19 6.9a1 1 0 0 0-.95-.7h-1.9"/><path d="M3.2 13.6V19a1.6 1.6 0 0 0 1.6 1.6h14.4a1.6 1.6 0 0 0 1.6-1.6v-5.4"/>'),
   plus: sv('<circle cx="12" cy="12" r="8.5"/><path d="M12 8.2v7.6M8.2 12h7.6"/>'),
   tray: sv('<path d="M3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5"/><path d="M3 13.5h5l1.2 2h5.6l1.2-2h5"/><path d="M12 3v7m0 0 2.6-2.6M12 10 9.4 7.4"/>'),
   verify: sv('<path d="M7 4h7l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v4h4"/><path d="M9 14l2.2 2.2L15.5 12"/>'),
   star: sv('<path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.6 9.7l5.8-.8z"/>'),
+  disc: sv('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/><path d="M12 3a9 9 0 0 1 7.5 4"/>'),
   gear: sv('<circle cx="12" cy="12" r="3"/><path d="M19.1 14.7a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-2.6 1.1v.2a1.8 1.8 0 0 1-3.6 0v-.1a1.5 1.5 0 0 0-2.6-1.1l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0-1.1-2.6h-.2a1.8 1.8 0 0 1 0-3.6h.1a1.5 1.5 0 0 0 1.1-2.6l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4v-.2a1.8 1.8 0 0 1 3.6 0v.1a1.5 1.5 0 0 0 2.6 1.1l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.8 1.8 0 0 1 0 3.6h-.1a1.5 1.5 0 0 0-1.4.9z"/>'),
 };
 
@@ -390,9 +394,11 @@ export function more() {
   const review = S.titles.filter(t => (t.match === 'review' || t.match === 'notfound') && !S.cur.matchOverrides?.[t.id]).length;
   const unsorted = unsortedIds().length;
   const tiles = [
-    ['#/tristan', 'Tristan’s queue', ICON.wolf, S.cur.entries.filter(e => e.tier === 'T' && open(e)).length],
-    ['#/store', 'Store picks', ICON.tape, S.cur.entries.filter(e => e.tier === 'W').length],
+    ['#/tristan', 'Tristan’s queue', ICON.wolf, S.cur.entries.filter(e => onShelf(e) && e.tier === 'T' && open(e)).length],
+    ['#/store', 'Store picks', ICON.tape, S.cur.entries.filter(e => onShelf(e) && e.tier === 'W').length],
+    ['#/incoming', 'Incoming', ICON.inbox, S.cur.entries.filter(e => e.auto).length],
     ['#/add', 'Add a title', ICON.plus, 0],
+    ['#/rent', 'Rent', ICON.disc, S.cur.entries.filter(e => e.tier === 'R' && !e.rented).length],
     ['#/unsorted', 'Unsorted', ICON.tray, unsorted],
     ['#/review', 'Check matches', ICON.verify, review],
     ['#/watched', 'Verdicts', ICON.star, S.cur.verdicts.length],
@@ -402,6 +408,72 @@ export function more() {
     <nav class="tiles">${tiles.map(([href, label, icon, n]) => `<a class="tile" href="${href}">${icon}<span class="lbl">${label}</span>${n ? `<span class="count">${n}</span>` : ''}</a>`).join('')}</nav>
     <p class="fine">${S.titles.length} titles, ${S.cur.entries.length} list entries, ${S.cur.verdicts.length} verdicts. Letterboxd export from ${esc(S.lb?.exportedAt || '—')}.</p>
     <p class="fine">Posters, credits and links come from the TMDB API. This app is not endorsed or certified by TMDB.</p>`;
+}
+// The monthly pass parks what it finds here. Nothing reaches a shelf until it is kept.
+function incomingRow(e, i) {
+  const t = title(e.t); if (!t) return '';
+  const where = e.tier === 'C' ? 'Coming soon' : `${TIER[e.tier] || e.tier}${e.energy ? ', ' + ENERGY[e.energy].toLowerCase() : ''}`;
+  return `<div class="irow">
+    ${row(e.t, { entry: e, marks: false })}
+    <div class="irow-foot">
+      <span class="suggest">${esc(where)}${e.found ? ` · found ${esc(e.found)}` : ''}</span>
+      <span class="irow-acts">
+        <button class="btn small" data-act="keep-auto" data-t="${esc(e.t)}" data-i="${i}">Keep</button>
+        <button class="btn small ghost" data-act="bin-auto" data-t="${esc(e.t)}" data-i="${i}">Bin</button>
+      </span>
+    </div>
+  </div>`;
+}
+export function incoming(ui) {
+  const auto = S.cur.entries.map((e, i) => ({ e, i })).filter(x => x.e.auto);
+  const now = auto.filter(x => x.e.tier !== 'C'), soon = auto.filter(x => x.e.tier === 'C');
+  const kept = S.cur.entries.map((e, i) => ({ e, i })).filter(x => !x.e.auto && x.e.tier === 'C');
+  const head = `<header class="view-head"><a class="back" href="#/more">More</a><h1>Incoming</h1>${syncNote()}</header>`;
+  if (!auto.length && !kept.length) return head + empty('Nothing waiting. The monthly pass puts anything it finds here first, so it never lands on a shelf without you.');
+  const block = (key, title2, list, hint) => list.length ? shelf(ui, 'incoming:' + key,
+    `${title2} <span class="count">${list.length}</span>`,
+    `${hint ? `<p class="hint">${hint}</p>` : ''}<div class="rows">${list.map(x => incomingRow(x.e, x.i)).join('')}</div>`) : '';
+  return `${head}
+    <p class="lede">Picks the monthly pass found. Keep sends one to the list it suggests; Bin removes it and stops it coming back.</p>
+    ${block('now', 'Watchable now', now, 'These are out, so keeping one puts it straight on the shelf shown.')}
+    ${block('soon', 'Announced', soon, 'Not out yet. Kept ones wait below until a later pass moves them to a real list.')}
+    ${kept.length ? shelf(ui, 'incoming:kept', `Coming soon <span class="count">${kept.length}</span>`,
+      `<p class="hint">Kept, waiting for release.</p><div class="rows">${kept.map(x => `<div class="irow">${row(x.e.t, { entry: x.e, marks: false })}
+        <div class="irow-foot"><span class="suggest">${x.e.note ? esc(x.e.note) : 'Awaiting release'}</span>
+        <span class="irow-acts"><button class="btn small ghost" data-act="bin-auto" data-t="${esc(x.e.t)}" data-i="${x.i}">Bin</button></span></div></div>`).join('')}</div>`, false) : ''}`;
+}
+// Films the pass could not find on any service. Grouped by whether We Luv Video stocks them.
+function rentRow(e, i) {
+  const t = title(e.t); if (!t) return '';
+  const at = e.wlv === 'yes';
+  return `<div class="irow${e.rented ? ' is-played' : ''}">
+    ${row(e.t, { entry: e, marks: false })}
+    <div class="irow-foot">
+      <span class="suggest">${e.rented ? `Rented ${esc(e.rented)}` : esc(e.note || (at ? 'In stock' : 'Stock not confirmed'))}${e.shelf ? ` \u00b7 ${esc(e.shelf)}` : ''}</span>
+      <span class="irow-acts">
+        <button class="btn small${e.rented ? ' ghost' : ''}" data-act="${e.rented ? 'unrent' : 'rent'}" data-t="${esc(e.t)}" data-i="${i}">${e.rented ? 'Put back' : 'Rented'}</button>
+        <button class="btn small ghost" data-act="drop-rent" data-t="${esc(e.t)}" data-i="${i}">Remove</button>
+      </span>
+    </div>
+  </div>`;
+}
+export function rent(ui) {
+  const all = S.cur.entries.map((e, i) => ({ e, i })).filter(x => x.e.tier === 'R');
+  const kindOk = (x) => ui.kind === 'all' || !ui.kind || (title(x.e.t)?.kind || 'film') === ui.kind;
+  const live = all.filter(x => kindOk(x) && !x.e.rented);
+  const done = all.filter(x => x.e.rented);
+  const head = `<header class="view-head"><a class="back" href="#/more">More</a><h1>Rent</h1>${syncNote()}</header>`;
+  if (!all.length) return head + empty('Nothing to rent. Anything you want that isn\u2019t streaming anywhere lands here, with a note on whether We Luv Video has a copy.');
+  const stocked = live.filter(x => x.e.wlv === 'yes'), maybe = live.filter(x => x.e.wlv !== 'yes');
+  const block = (key, t2, list, hint) => list.length ? shelf(ui, 'rent:' + key, `${t2} <span class="count">${list.length}</span>`,
+    `${hint ? `<p class="hint">${hint}</p>` : ''}<div class="rows">${list.map(x => rentRow(x.e, x.i)).join('')}</div>`) : '';
+  return `${head}
+    <p class="lede">Not streaming anywhere you subscribe to. Take the list on your next shift.</p>
+    ${filters(ui, ['kind'])}
+    ${block('wlv', 'At We Luv Video', stocked, 'Confirmed in the catalogue.')}
+    ${block('else', 'Nowhere found yet', maybe, 'Not in the We Luv Video catalogue either \u2014 worth asking, or waiting for a re-check.')}
+    ${done.length ? shelf(ui, 'rent:done', `Rented <span class="count">${done.length}</span>`,
+      `<div class="rows">${done.map(x => rentRow(x.e, x.i)).join('')}</div>`, false, 'group shelf played') : ''}`;
 }
 export function search(q) {
   const n = (s) => String(s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
