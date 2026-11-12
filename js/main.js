@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.17';
+const BUILD = '2026-11-11.18';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -73,7 +73,9 @@ function render() {
   if (!auth) { nav.hidden = true; view.innerHTML = UI.login(CONFIG, loginError); return; }
   if (!S.loaded) {
     nav.hidden = true;
-    view.innerHTML = S.error ? `<main class="login"><h1>Film School</h1><p class="error" role="alert">${S.error}</p><div class="actions left"><button class="btn" data-act="reload">Try again</button><button class="btn ghost" data-act="signout">Use a different token</button></div></main>` : UI.leader();
+    // A dropped connection is not a bad token, so don't offer to replace one.
+    const netErr = S.error && (S.errorStatus === 0 || S.errorStatus === null);
+    view.innerHTML = S.error ? `<main class="login"><h1>Film School</h1><p class="error" role="alert">${S.error}</p>${netErr ? '<p class="hint">The lists run to a few megabytes, so a weak signal can cut the download short. On a better connection it should open straight away.</p>' : ''}<div class="actions left"><button class="btn" data-act="reload">Try again</button>${netErr ? '' : '<button class="btn ghost" data-act="signout">Use a different token</button>'}</div>${netErr ? '<p class="fine"><button class="linkish" data-act="signout">Sign out on this device</button></p>' : ''}</main>` : UI.leader();
     return;
   }
   nav.hidden = false;

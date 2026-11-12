@@ -71,19 +71,34 @@ export async function readFile(auth, path) {
   const cached = await cacheGet(key);
   const h = headers(auth, { Accept: 'application/vnd.github.raw+json' });
   if (cached?.etag) h['If-None-Match'] = cached.etag;
-  let r;
+  let r, bytes;
   try {
     r = await fetch(contentsUrl(auth, path) + `?ref=${encodeURIComponent(auth.branch || 'main')}`, { headers: h, cache: 'no-store' });
+    if (r.status === 304 && cached) return { ...cached, changed: false };
+    if (r.status === 404) return null;
+    if (r.status === 401) throw new GitHubError(401, 'Your GitHub token stopped working. Add a new one in Settings.');
+    if (!r.ok) throw new GitHubError(r.status, `Couldn’t read ${path} (GitHub ${r.status}).`);
+    // These files run to several megabytes, so the body is the part most likely to
+    // drop on a weak connection. Reading it inside the try means a half-finished
+    // transfer falls back to the cached copy instead of failing the whole load.
+    bytes = await r.arrayBuffer();
   } catch (e) {
+    if (e instanceof GitHubError) throw e;
     if (cached) return { ...cached, changed: false, offline: true };
     throw new GitHubError(0, 'Can’t reach GitHub. Check your connection.');
   }
-  if (r.status === 304 && cached) return { ...cached, changed: false };
-  if (r.status === 404) return null;
-  if (r.status === 401) throw new GitHubError(401, 'Your GitHub token stopped working. Add a new one in Settings.');
-  if (!r.ok) throw new GitHubError(r.status, `Couldn’t read ${path} (GitHub ${r.status}).`);
-  const bytes = await r.arrayBuffer();
-  const rec = { text: dec.decode(bytes), sha: await blobSha(bytes), etag: r.headers.get('ETag') };
+  const text = dec.decode(bytes);
+  // A cut-short transfer can still arrive as a 200 with a partial body, which
+  // parses as broken JSON. Check before caching: half a file is worse than none,
+  // because it would persist and break every later open.
+  if (path.endsWith('.json')) {
+    try { JSON.parse(text); }
+    catch {
+      if (cached) return { ...cached, changed: false, offline: true };
+      throw new GitHubError(0, 'The download was cut short. Check your connection and try again.');
+    }
+  }
+  const rec = { text, sha: await blobSha(bytes), etag: r.headers.get('ETag') };
   await cacheSet(key, rec);
   return { ...rec, changed: true };
 }

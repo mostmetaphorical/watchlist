@@ -5,7 +5,7 @@ const FILES = { titles: 'data/titles.json', people: 'data/people.json', curation
 const listeners = new Set();
 export const S = {
   titles: [], byId: new Map(), people: {}, cur: null, lb: null,
-  shas: {}, loaded: false, syncing: false, error: null, offline: false, saving: 0,
+  shas: {}, loaded: false, syncing: false, error: null, errorStatus: null, offline: false, saving: 0,
 };
 export const onChange = (fn) => (listeners.add(fn), () => listeners.delete(fn));
 const emit = () => listeners.forEach(fn => fn());
@@ -71,7 +71,7 @@ function apply(name, text) {
 }
 export async function load() {
   const auth = getAuth(); if (!auth) return;
-  S.syncing = true; S.error = null; emit();
+  S.syncing = true; S.error = null; S.errorStatus = null; emit();
   let changed = false;
   try {
     const results = await Promise.all(Object.entries(FILES).map(async ([name, path]) => [name, await readFile(auth, path)]));
@@ -85,6 +85,7 @@ export async function load() {
     S.loaded = true;
   } catch (e) {
     S.error = e.message || String(e);
+    S.errorStatus = e.status ?? 0;
   } finally { S.syncing = false; emit(); }
 }
 
