@@ -1,12 +1,13 @@
-// The randomizer: pick one thing to watch from a chosen pool.
-// pool() is pure (and tested); view() and roll() are the screen.
+// Roll the dice: pick one thing to watch from a chosen pool.
+// pool() and pickFrom() only read data (the tests call them directly);
+// roll() remembers the pick, and view() draws the page.
 import { S, title, open, pitchOf } from './store.js';
 import { esc } from './md.js';
 import { onDisk, atWlv, availMarks } from './avail.js';
 import { face, randomInt } from './dice.js';
-import { poster, runtime, playedOn, TIER, ENERGY } from './parts.js';
+import { poster, metaLine, playedOn, isMoodShelf, uiSelect, TIER, ENERGY } from './parts.js';
 
-// Who it's for. Each audience is a set of list tiers.
+// The filter choices, as [value, label]. An audience is a set of list tiers.
 export const AUDIENCES = [
   ['all', 'Anything', null],
   ['together', 'Together', ['B', 'B?']],
@@ -23,12 +24,14 @@ export const KINDS = [['all', 'Films & series'], ['film', 'Films'], ['series', '
 export const LENGTHS = [['any', 'Any length'], ['90', 'Under 1½ hours'], ['120', 'Under 2 hours']];
 export const WHERE = [['any', 'Anywhere'], ['disk', 'On disk'], ['wlv', 'At We Luv Video']];
 
-// Every title that fits the filters, one entry per title. `skip` is a Set of ids.
+// Every title that fits the filters, one entry per title. f is filtersOf(ui);
+// skip is a Set of title ids set aside with "Not tonight".
 export function pool(f, skip = new Set()) {
   const tiers = AUDIENCES.find(a => a[0] === f.aud)?.[2] || ALL_TIERS;
-  const seen = new Map();
+  const picked = new Map();
   for (const e of S.cur?.entries || []) {
-    if (e.auto || !tiers.includes(e.tier) || seen.has(e.t) || skip.has(e.t)) continue;
+    if (e.auto || !tiers.includes(e.tier) || picked.has(e.t) || skip.has(e.t)) continue;
+    // Still to do: store picks not played lately, rentals not rented, everything else not watched.
     if (e.tier === 'W' ? !!playedOn(e) : e.tier === 'R' ? !!e.rented : !open(e)) continue;
     const t = title(e.t); if (!t) continue;
     if (f.night && f.night !== 'any' && e.energy !== f.night) continue;
@@ -36,9 +39,9 @@ export function pool(f, skip = new Set()) {
     if (f.len && f.len !== 'any' && t.runtime && t.runtime > Number(f.len)) continue;
     if (f.where === 'disk' && !onDisk(t.id)) continue;
     if (f.where === 'wlv' && !atWlv(t.id)) continue;
-    seen.set(e.t, e);
+    picked.set(e.t, e);
   }
-  return [...seen.values()];
+  return [...picked.values()];
 }
 
 // One pick, avoiding the last few results unless that would leave nothing.
@@ -51,6 +54,8 @@ export function pickFrom(list, recent = []) {
 }
 
 // ---------------------------------------------------------------- state for this visit
+// Kept in memory only: the current pick, the last eight (so a re-roll doesn't
+// repeat them), what's been set aside, and the faces the dice last landed on.
 export const R = { current: null, recent: [], skip: new Set(), faces: [5, 2] };
 export function roll(f) {
   const e = pickFrom(pool(f, R.skip), R.recent);
@@ -60,24 +65,24 @@ export function roll(f) {
 }
 
 // ---------------------------------------------------------------- view
+// Shorten to about n characters, at a word break.
 const clip = (s, n = 320) => { s = String(s || '').trim(); return s.length > n ? s.slice(0, s.lastIndexOf(' ', n)) + '…' : s; };
-const select = (key, label, opts, val) => `<label class="filter"><span>${esc(label)}</span><select data-ui="${key}">${opts.map(([v, l]) =>
-  `<option value="${esc(v)}"${v === val ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
 
+// The card for the pick: the pitch if Tristan's in the audience, else the note or synopsis.
 function blurb(c) {
   const t = title(c.t); if (!t) return '';
   const said = (['B', 'B?', 'T'].includes(c.tier) && pitchOf(t.id)) || c.note || t.overview || t.syn || '';
-  // List, night, and shelf, skipping a shelf name that only repeats the other two.
-  const said2 = [TIER[c.tier], c.energy && ENERGY[c.energy]?.toLowerCase()].filter(Boolean);
-  const generic = /^(light nights|dense nights|heavy tokens|test together|new picks|to rent|priority queue)$/i.test(c.section || '') ||
-    said2.some(x => x.toLowerCase() === String(c.section || '').toLowerCase());
-  const where = [...said2, c.section && !generic ? c.section : ''].filter(Boolean).join(' · ');
+  // "Together · dense night · Sci-fi", leaving out a shelf name that says nothing new.
+  const list = [TIER[c.tier], c.energy && ENERGY[c.energy]?.toLowerCase()].filter(Boolean);
+  const sec = String(c.section || '');
+  const generic = isMoodShelf(sec) || /^(to rent|priority queue)$/i.test(sec) || list.some(x => x.toLowerCase() === sec.toLowerCase());
+  const where = [...list, sec && !generic ? sec : ''].filter(Boolean).join(' · ');
   return `<article class="roll-card">
     <a class="roll-poster" href="#/t/${encodeURIComponent(t.id)}" tabindex="-1" aria-hidden="true">${poster(t, 'w342')}</a>
     <div class="roll-body">
       <p class="roll-where">${esc(where)}</p>
       <h2><a href="#/t/${encodeURIComponent(t.id)}">${esc(t.title)}</a></h2>
-      <p class="row-meta">${[t.year, runtime(t), t.kind === 'series' ? 'Series' : ''].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('')}</p>
+      <p class="row-meta">${metaLine(t)}</p>
       ${said ? `<p class="roll-said">${esc(clip(said))}</p>` : ''}
       <p class="row-marks">${availMarks(t.id)}</p>
     </div>
@@ -88,11 +93,13 @@ function blurb(c) {
   </article>`;
 }
 
+// The page: the dice button, the pick, and the filters (open until the first roll).
+const labelOf = (choices, v) => choices.find(x => x[0] === v)?.[1];
 export function view(ui) {
   const f = filtersOf(ui), n = pool(f, R.skip).length;
   const c = R.current && title(R.current.t) ? R.current : null;
-  const sum = [AUDIENCES.find(a => a[0] === f.aud)?.[1], NIGHTS.find(x => x[0] === f.night)?.[1], KINDS.find(x => x[0] === f.kind)?.[1],
-    f.len !== 'any' && LENGTHS.find(x => x[0] === f.len)?.[1], f.where !== 'any' && WHERE.find(x => x[0] === f.where)?.[1]].filter(Boolean).join(' · ');
+  const sum = [labelOf(AUDIENCES, f.aud), labelOf(NIGHTS, f.night), labelOf(KINDS, f.kind),
+    f.len !== 'any' && labelOf(LENGTHS, f.len), f.where !== 'any' && labelOf(WHERE, f.where)].filter(Boolean).join(' · ');
   return `<header class="view-head"><a class="back" href="#/more" data-act="back">Back</a><h1>Roll the dice</h1></header>
     <div class="roll-stage">
       <button class="roll-btn" data-act="roll" type="button"${n ? '' : ' disabled'}>
@@ -104,13 +111,14 @@ export function view(ui) {
     <div id="roll-result" aria-live="polite">${c ? blurb(c) : ''}</div>
     <details class="roll-opts"${!c || ui.rollOptsOpen ? ' open' : ''}><summary data-act="roll-opts"><span>Narrow it down</span> <span class="hint">${esc(sum)}</span></summary>
       <div class="roll-filters">
-        ${select('rollAud', 'Who for', AUDIENCES.map(a => [a[0], a[1]]), f.aud)}
-        ${select('rollNight', 'Night', NIGHTS, f.night)}
-        ${select('rollKind', 'Kind', KINDS, f.kind)}
-        ${select('rollLen', 'Length', LENGTHS, f.len)}
-        ${select('rollWhere', 'Where', WHERE, f.where)}
+        ${uiSelect('rollAud', 'Who for', AUDIENCES.map(a => [a[0], a[1]]), f.aud, true)}
+        ${uiSelect('rollNight', 'Night', NIGHTS, f.night, true)}
+        ${uiSelect('rollKind', 'Kind', KINDS, f.kind, true)}
+        ${uiSelect('rollLen', 'Length', LENGTHS, f.len, true)}
+        ${uiSelect('rollWhere', 'Where', WHERE, f.where, true)}
         <label class="toggle"><input type="checkbox" data-ui="rollSound"${ui.rollSound !== false ? ' checked' : ''}><span>Dice sound</span></label>
       </div>
     </details>`;
 }
+// The roll filters as remembered per device, with defaults.
 export const filtersOf = (ui) => ({ aud: ui.rollAud || 'together', night: ui.rollNight || 'any', kind: ui.rollKind || 'all', len: ui.rollLen || 'any', where: ui.rollWhere || 'any' });

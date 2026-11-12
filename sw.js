@@ -1,12 +1,15 @@
-// Caches the app itself so it opens offline. Your data is cached separately (in the app) and never by this file.
-const CACHE = 'film-school-shell-v24';
+// Caches the app itself so it opens offline. Your data is cached separately
+// (in IndexedDB, by js/gh.js) and never by this file.
+// With every release: bump CACHE, and add any new file to SHELL.
+const CACHE = 'film-school-shell-v25';
 const SHELL = ['./', 'index.html', 'config.js', 'css/app.css', 'js/main.js', 'js/store.js', 'js/gh.js', 'js/ui.js', 'js/parts.js', 'js/lists.js', 'js/titlepage.js', 'js/more.js', 'js/forms.js', 'js/md.js', 'js/avail.js', 'js/roll.js', 'js/dice.js', 'fonts/inter.woff', 'fonts/inter-italic.woff', 'fonts/poppins-500.woff', 'fonts/poppins-800.woff', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin) return;
-  // network first, so a new version shows up on the next open; fall back to the cached copy offline
+  // Network first, so a new version shows up on the next open; the cached copy when offline.
+  // Only this site's own files: GitHub and TMDB requests pass straight through.
   e.respondWith(fetch(e.request).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return r; })
     .catch(() => caches.match(e.request, { ignoreSearch: true }).then(r => r || caches.match('index.html'))));
 });

@@ -1,12 +1,17 @@
 // Where a title can be had: Radarr (from data/radarr.json) and We Luv Video
 // (from data/wlv.json). Both files are written by GitHub Actions in the data repo;
 // the app only reads them and builds links. It never contacts Radarr or the shop.
-import { S } from './store.js';
+import { S, tmdbRef } from './store.js';
 import { esc } from './md.js';
 
 export const WLV_STORE = 'https://store.weluvvideo.org';
+// A store page path as the catalogue check records it ("/the-thing-1982").
+// Anything else is ignored rather than turned into a link.
 const WLV_SLUG = /^\/[a-z0-9][a-z0-9-]*$/;
 
+// data/radarr.json: { titles: { <title id>: { slug, file, monitored } } }
+// data/wlv.json:    { titles: { <title id>: { checked, items: [{ slug, name, total, formats }] } } }
+// (total is the shop's own copy count; 0 means it lists the film but has no copies.)
 export const radarrOf = (id) => S.radarr?.titles?.[id] || null;
 export const wlvOf = (id) => S.wlv?.titles?.[id] || null;
 export const onDisk = (id) => !!radarrOf(id)?.file;
@@ -42,7 +47,8 @@ const fmtDate = (d) => { const t = Date.parse(d); return Number.isNaN(t) ? '' : 
 // today is deliberately not shown: the store page answers that live.
 export const formatsOf = (i) => [...new Set((i.formats || []).map(f => (typeof f === 'string' ? f : f.format)).filter(Boolean))].join(', ');
 
-export const isFilm = (t) => t && t.kind !== 'series' && t.kind !== 'standup' && t.tmdb?.type !== 'tv';
+// Radarr only handles films, so series and stand-up get no Radarr line.
+export const isFilm = (t) => t && t.kind !== 'series' && t.kind !== 'standup' && tmdbRef(t)?.type !== 'tv';
 
 // Small chips for list rows. Cheap: two map lookups.
 export function availMarks(id) {

@@ -1,6 +1,12 @@
-// Minimal markdown for notes: paragraphs, headings, lists, **bold**, *italic*, [links](url), and front matter.
+// Minimal markdown for notes: paragraphs, headings, lists, **bold**, *italic*,
+// [links](url), and front matter. Text is escaped first and only http(s) links
+// become <a>, so a note can't put its own HTML or scripts on the page.
+
+// Escape text for use inside HTML, attributes included. Every view runs data through this.
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// The block between two "---" lines at the top of a note: "key: value" lines and
+// "key:" followed by "  - item" lines. Returns { meta, body }.
 export function frontMatter(text) {
   const m = String(text || '').match(/^---\n([\s\S]*?)\n---\n?/);
   if (!m) return { meta: {}, body: text || '' };
@@ -21,6 +27,7 @@ function inline(s) {
     .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, '$1<em>$2</em>');
 }
 
+// Markdown text -> HTML.
 export function md(text) {
   const out = []; let list = null, para = [];
   const flushP = () => { if (para.length) { out.push(`<p>${inline(para.join(' '))}</p>`); para = []; } };
