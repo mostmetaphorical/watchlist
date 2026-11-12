@@ -1,18 +1,25 @@
 import { CONFIG } from '../config.js';
 import { getAuth, setAuth, checkAuth, cacheClear } from './gh.js';
-import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, getNote, saveNote, getVolume, newTitleId, nextVerdictId, today } from './store.js';
+import { S, onChange, load, saveCuration, title, seen, getNote, saveNote, getVolume, newTitleId, nextVerdictId, today } from './store.js';
 import * as UI from './ui.js';
-import { frontMatter } from './md.js';
+import * as Roll from './roll.js';
+import { tumble, rattle } from './dice.js';
+import { setRadarrBase } from './avail.js';
+import { frontMatter, esc } from './md.js';
 
-const BUILD = '2026-11-12.1';
+const BUILD = '2026-11-12.2';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
 // ---------------------------------------------------------------- remembered view options (per device)
-const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', openShelves: {}, kind: 'all', sort: 'curated', showSeen: false, openSolo: [], spoilers: {}, q: '' },
-  (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })());
-ui.spoilers = {}; ui.q = '';
-const remember = () => { try { localStorage.setItem('fs.ui', JSON.stringify({ theme: ui.theme, layout: ui.layout, night: ui.night, openShelves: ui.openShelves, kind: ui.kind, sort: ui.sort, showSeen: ui.showSeen, openSolo: ui.openSolo })); } catch {} };
+const ui = Object.assign({ theme: 'luv', layout: 'list', night: 'all', openShelves: {}, kind: 'all', sort: 'curated', showSeen: false,
+  rollAud: 'together', rollNight: 'any', rollKind: 'all', rollLen: 'any', rollWhere: 'any', rollSound: true },
+  (() => { try { return JSON.parse(localStorage.getItem('fs.ui') || '{}'); } catch { return {}; } })(),
+  { spoilers: {}, q: '' });
+const PER_VISIT = new Set(['spoilers', 'q', 'rollOptsOpen']);   // never written to storage
+const remember = () => {
+  try { localStorage.setItem('fs.ui', JSON.stringify(Object.fromEntries(Object.entries(ui).filter(([k]) => !PER_VISIT.has(k))))); } catch {}
+};
 
 function applyLook() {
   const r = document.documentElement;
@@ -21,11 +28,11 @@ function applyLook() {
   r.dataset.layout = ui.layout; UI.setLayout(ui.layout);
 }
 applyLook();
-let loginError = null, lastRoute = null, vols = null;
+let loginError = null, radarrError = null, lastRoute = null, vols = null, pendingRoll = false, rolling = false;
 
 // Remember how far down each list was scrolled, so coming back from a film lands where you left off.
 // Film and person pages always open at the top.
-const LISTS = new Set(['together', 'solo', 'tristan', 'store', 'incoming', 'rent', 'school', 'more', 'watched', 'unsorted', 'review', 'search']);
+const LISTS = new Set(['together', 'solo', 'tristan', 'store', 'incoming', 'rent', 'school', 'more', 'watched', 'unsorted', 'review', 'search', 'roll']);
 const scrollPos = new Map(Object.entries((() => { try { return JSON.parse(sessionStorage.getItem('fs.scroll') || '{}'); } catch { return {}; } })()));
 const keepScroll = () => { try { sessionStorage.setItem('fs.scroll', JSON.stringify(Object.fromEntries(scrollPos))); } catch {} };
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
@@ -68,14 +75,19 @@ async function loadVolumes() {
   vols = out; if (route().name === 'school') render();
 }
 
+// GitHub Pages can't send a frame-ancestors header, so refuse to draw inside
+// someone else's page (a framed copy could trick taps onto Remove buttons).
+const framed = (() => { try { return window.top !== window.self; } catch { return true; } })();
+
 function render() {
+  if (framed) { nav.hidden = true; view.textContent = 'Film School only opens in its own window.'; return; }
   const auth = getAuth();
   if (!auth) { nav.hidden = true; view.innerHTML = UI.login(CONFIG, loginError); return; }
   if (!S.loaded) {
     nav.hidden = true;
     // A dropped connection is not a bad token, so don't offer to replace one.
     const netErr = S.error && (S.errorStatus === 0 || S.errorStatus === null);
-    view.innerHTML = S.error ? `<main class="login"><h1>Film School</h1><p class="error" role="alert">${S.error}</p>${netErr ? '<p class="hint">The lists run to a few megabytes, so a weak signal can cut the download short. On a better connection it should open straight away.</p>' : ''}<div class="actions left"><button class="btn" data-act="reload">Try again</button>${netErr ? '' : '<button class="btn ghost" data-act="signout">Use a different token</button>'}</div>${netErr ? '<p class="fine"><button class="linkish" data-act="signout">Sign out on this device</button></p>' : ''}</main>` : UI.leader();
+    view.innerHTML = S.error ? `<main class="login"><h1>Film School</h1><p class="error" role="alert">${esc(S.error)}</p>${netErr ? '<p class="hint">The lists run to a few megabytes, so a weak signal can cut the download short. On a better connection it should open straight away.</p>' : ''}<div class="actions left"><button class="btn" data-act="reload">Try again</button>${netErr ? '' : '<button class="btn ghost" data-act="signout">Use a different token</button>'}</div>${netErr ? '<p class="fine"><button class="linkish" data-act="signout">Sign out on this device</button></p>' : ''}</main>` : UI.leader();
     return;
   }
   nav.hidden = false;
@@ -104,7 +116,8 @@ function render() {
     case 'incoming': html = UI.incoming(ui); break;
     case 'rent': html = UI.rent(ui); break;
     case 'review': html = UI.review(); break;
-    case 'settings': html = UI.settings(auth, BUILD); break;
+    case 'settings': html = UI.settings(auth, BUILD, radarrError); break;
+    case 'roll': html = Roll.view(ui); break;
     default: html = UI.together(ui);
   }
   const y = window.scrollY;
@@ -115,10 +128,26 @@ function render() {
     view.focus({ preventScroll: true });
   } else window.scrollTo(0, y);
   lastRoute = key;
-  const tab = ['solo', 'school'].includes(r.name) ? r.name : r.name === 'together' ? 'together' : ['tristan', 'store', 'incoming', 'rent', 'search', 'add', 'watched', 'unsorted', 'review', 'settings'].includes(r.name) ? 'more' : null;
+  const tab = ['solo', 'school'].includes(r.name) ? r.name : r.name === 'together' ? 'together' : ['tristan', 'store', 'incoming', 'rent', 'search', 'add', 'watched', 'unsorted', 'review', 'settings', 'roll'].includes(r.name) ? 'more' : null;
   nav.querySelectorAll('a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === tab));
   if (r.name === 'search') { const q = $('#q'); if (q && document.activeElement !== q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   document.title = (r.name === 't' && title(r.arg)?.title ? title(r.arg).title + ' — ' : '') + 'Film School';
+  if (r.name === 'roll' && pendingRoll) { pendingRoll = false; doRoll(); }
+}
+
+// ---------------------------------------------------------------- the dice
+async function doRoll() {
+  if (rolling) return;
+  rolling = true;
+  try {
+    Roll.roll(Roll.filtersOf(ui));
+    if (ui.rollSound !== false) rattle();
+    Roll.R.faces = await tumble(document.getElementById('dice'));
+  } finally { rolling = false; }
+  render();
+  const card = document.querySelector('#roll-result .roll-card');
+  card?.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  card?.querySelector('h2 a')?.focus({ preventScroll: true });
 }
 
 function openSheet(html) { sheetBody.innerHTML = html; if (!sheet.open) sheet.showModal(); sheetBody.querySelector('input:not([type=checkbox]):not([type=radio]),select,textarea')?.focus({ preventScroll: true }); }
@@ -133,71 +162,108 @@ const SECTION_FOR = (d) => d.tier === 'R' ? 'To rent' : d.tier === 'C' ? 'Coming
 const entryRef = (cur, id, i) => cur.entries.filter(e => e.t === id)[i];
 
 // ---------------------------------------------------------------- clicks
+// One handler per data-act. Each gets the element, the title id it belongs to
+// (from data-id or the enclosing form), and the event.
+const setUi = (k, v, look) => { ui[k] = v; remember(); if (look) applyLook(); render(); };
+const deny = (cur, t, from) => {
+  // Removing something by hand should stop the automated passes bringing it back.
+  const tm = title(t)?.tmdb;
+  if (!(cur.declined ||= []).some(d => d.t === t)) cur.declined.push({ t, title: name(t), ...(tm ? { tmdb: tm } : {}), date: today(), ...(from ? { from } : {}) });
+};
+const ACTIONS = {
+  night: (el) => setUi('night', el.dataset.v),
+  layout: (el) => setUi('layout', el.dataset.v, true),
+  theme: (el) => setUi('theme', el.dataset.v, true),
+  back: () => { if (history.length > 1) history.back(); else location.hash = '#/together'; },
+
+  'add-entry': (el, id) => openSheet(UI.entryForm(id)),
+  'edit-entry': (el, id) => openSheet(UI.entryForm(id, Number(el.dataset.i))),
+  'add-verdict': (el, id) => openSheet(UI.verdictForm(id)),
+  'edit-verdict': (el, id) => openSheet(UI.verdictForm(id, el.dataset.v)),
+  'edit-pitch': (el, id) => openSheet(UI.pitchForm(id)),
+  'edit-note': (el, id) => openSheet(UI.noteForm(id, notes.get(id)?.text)),
+  'fix-match': (el, id) => openSheet(UI.matchForm(id)),
+  'remove-title': (el, id) => openSheet(UI.removeTitleForm(id)),
+  'close-sheet': () => closeSheet(),
+
+  'remove-entry': (el, id) => { const i = Number(el.closest('form').dataset.i); save(cur => { const e = entryRef(cur, id, i); cur.entries = cur.entries.filter(x => x !== e); }, `Remove ${name(id)} from a list`, 'Removed'); },
+  'remove-verdict': (el, id) => { const vid = el.closest('form').dataset.v; save(cur => { cur.verdicts = cur.verdicts.filter(v => v.id !== vid); }, `Delete verdict: ${name(id)}`, 'Deleted'); },
+  'pick-match': (el, id) => save(cur => { (cur.matchOverrides ||= {})[id] = { type: el.dataset.type, id: Number(el.dataset.tmdb) }; }, `Fix TMDB match: ${name(id)} [enrich]`, 'Saved. Details update in a few minutes.'),
+  'retry-match': (el, id) => save(cur => { (cur.matchOverrides ||= {})[id] = 'retry'; }, `Search TMDB again: ${name(id)} [enrich]`, 'Searching again. Check back in a few minutes.'),
+  'no-match': (el, id) => save(cur => { (cur.matchOverrides ||= {})[id] = 'none'; }, `Mark as not on TMDB: ${name(id)} [enrich]`, 'Saved'),
+
+  // Store picks
+  play: (el) => played(el.dataset.t, true),
+  unplay: (el) => played(el.dataset.t, false),
+  'drop-store': (el) => { const t = el.dataset.t; save(cur => { cur.entries = cur.entries.filter(e => !(e.t === t && e.tier === 'W')); }, `Remove from store picks: ${name(t)}`, 'Removed'); },
+
+  // Incoming
+  'keep-auto': (el) => { const t = el.dataset.t, i = Number(el.dataset.i); save(cur => { const e = cur.entries[i]; if (e && e.t === t) { delete e.auto; delete e.found; } }, `Keep ${name(t)}`, 'Kept'); },
+  'bin-auto': (el) => {
+    const t = el.dataset.t, i = Number(el.dataset.i);
+    save(cur => { const e = cur.entries[i]; if (!e || e.t !== t) return; cur.entries = cur.entries.filter(x => x !== e); deny(cur, t); }, `Bin ${name(t)}`, 'Binned. It won\u2019t come back.');
+  },
+
+  // Rent
+  rent: (el) => rented(el, true),
+  unrent: (el) => rented(el, false),
+  'drop-rent': (el) => {
+    const t = el.dataset.t, i = Number(el.dataset.i);
+    // The weekly Radarr job would otherwise re-add it while Radarr still wants it.
+    save(cur => { const e = cur.entries[i]; if (!e || e.t !== t || e.tier !== 'R') return; cur.entries = cur.entries.filter(x => x !== e); deny(cur, t, 'rent'); },
+      `Remove from rent list: ${name(t)}`, 'Removed. It won\u2019t come back.');
+  },
+
+  // Dice
+  roll: () => doRoll(),
+  // The dice in a list header roll from what that list is showing: its audience,
+  // the night tab you're on, and films/series.
+  'roll-from': (el) => {
+    const together = el.dataset.v === 'together';
+    Object.assign(ui, {
+      rollAud: together && ui.night === 'test' ? 'test' : el.dataset.v,
+      rollNight: together && ['light', 'dense', 'heavy'].includes(ui.night) ? ui.night : 'any',
+      rollKind: ui.kind || 'all',
+    });
+    remember(); Roll.R.current = null; pendingRoll = true; location.hash = '#/roll';
+  },
+  'roll-skip': (el) => { Roll.R.skip.add(el.dataset.t); doRoll(); },
+  'roll-unskip': () => { Roll.R.skip.clear(); render(); },
+  // Remembered only when tapped, so the panel folding itself after a roll doesn't count.
+  'roll-opts': (el) => { ui.rollOptsOpen = !el.parentElement.open; },
+
+  // Settings
+  'radarr-clear': () => { setRadarrBase(''); radarrError = null; render(); toast('Radarr address removed'); },
+  reload: async () => { S.error = null; await load(); toast(S.error ? S.error : 'Up to date', !!S.error); },
+  signout: async () => { setAuth(null); await cacheClear(); try { localStorage.removeItem('fs.radarr'); } catch {} location.hash = ''; location.reload(); },
+};
+function played(t, on) {
+  save(cur => { for (const e of cur.entries) if (e.t === t && e.tier === 'W') { if (on) e.played = today(); else delete e.played; } },
+    `${on ? 'Played' : 'Back on the list'}: ${name(t)}`, on ? 'Played. Back in six months.' : 'Back on the list');
+}
+function rented(el, on) {
+  const t = el.dataset.t, i = Number(el.dataset.i);
+  save(cur => { const e = cur.entries[i]; if (e && e.t === t) { if (on) e.rented = today(); else delete e.rented; } },
+    `${on ? 'Rented' : 'Back on the rent list'}: ${name(t)}`, on ? 'Marked rented' : 'Back on the list');
+}
 document.addEventListener('click', async (ev) => {
   const el = ev.target.closest('[data-act]'); if (!el) return;
-  const a = el.dataset.act, id = el.dataset.id || el.closest('form')?.dataset.id;
-  if (a === 'night') { ui.night = el.dataset.v; remember(); render(); }
-  else if (a === 'layout') { ui.layout = el.dataset.v; remember(); applyLook(); render(); }
-  else if (a === 'theme') { ui.theme = el.dataset.v; remember(); applyLook(); render(); }
-  else if (a === 'add-entry') openSheet(UI.entryForm(id));
-  else if (a === 'edit-entry') openSheet(UI.entryForm(id, Number(el.dataset.i)));
-  else if (a === 'add-verdict') openSheet(UI.verdictForm(id));
-  else if (a === 'edit-verdict') openSheet(UI.verdictForm(id, el.dataset.v));
-  else if (a === 'edit-pitch') openSheet(UI.pitchForm(id));
-  else if (a === 'edit-note') openSheet(UI.noteForm(id, notes.get(id)?.text));
-  else if (a === 'fix-match') openSheet(UI.matchForm(id));
-  else if (a === 'remove-title') openSheet(UI.removeTitleForm(id));
-  else if (a === 'close-sheet') closeSheet();
-  else if (a === 'remove-entry') { const i = Number(el.closest('form').dataset.i); save(cur => { const e = entryRef(cur, id, i); cur.entries = cur.entries.filter(x => x !== e); }, `Remove ${name(id)} from a list`, 'Removed'); }
-  else if (a === 'remove-verdict') { const vid = el.closest('form').dataset.v; save(cur => { cur.verdicts = cur.verdicts.filter(v => v.id !== vid); }, `Delete verdict: ${name(id)}`, 'Deleted'); }
-  else if (a === 'pick-match') save(cur => { (cur.matchOverrides ||= {})[id] = { type: el.dataset.type, id: Number(el.dataset.tmdb) }; }, `Fix TMDB match: ${name(id)} [enrich]`, 'Saved. Details update in a few minutes.');
-  else if (a === 'play' || a === 'unplay') {
-    const t = el.dataset.t, on = a === 'play';
-    save(cur => { for (const e of cur.entries) if (e.t === t && e.tier === 'W') { if (on) e.played = today(); else delete e.played; } },
-      `${on ? 'Played' : 'Back on the list'}: ${name(t)}`, on ? 'Played. Back in six months.' : 'Back on the list');
-  }
-  else if (a === 'drop-store') {
-    const t = el.dataset.t;
-    save(cur => { cur.entries = cur.entries.filter(e => !(e.t === t && e.tier === 'W')); }, `Remove from store picks: ${name(t)}`, 'Removed');
-  }
-  else if (a === 'keep-auto') {
-    const t = el.dataset.t, i = Number(el.dataset.i);
-    save(cur => { const e = cur.entries[i]; if (e && e.t === t) { delete e.auto; delete e.found; } }, `Keep ${name(t)}`, 'Kept');
-  }
-  else if (a === 'bin-auto') {
-    const t = el.dataset.t, i = Number(el.dataset.i), tm = title(t)?.tmdb;
-    save(cur => {
-      const e = cur.entries[i]; if (!e || e.t !== t) return;
-      cur.entries = cur.entries.filter(x => x !== e);
-      // Remember it so the monthly pass never suggests it again.
-      (cur.declined ||= []).push({ t, title: name(t), ...(tm ? { tmdb: tm } : {}), date: today() });
-    }, `Bin ${name(t)}`, 'Binned. It won\u2019t come back.');
-  }
-  else if (a === 'rent' || a === 'unrent') {
-    const t = el.dataset.t, i = Number(el.dataset.i), on = a === 'rent';
-    save(cur => { const e = cur.entries[i]; if (e && e.t === t) { if (on) e.rented = today(); else delete e.rented; } },
-      `${on ? 'Rented' : 'Back on the rent list'}: ${name(t)}`, on ? 'Marked rented' : 'Back on the list');
-  }
-  else if (a === 'drop-rent') {
-    const t = el.dataset.t, i = Number(el.dataset.i), tm = title(t)?.tmdb;
-    save(cur => {
-      const e = cur.entries[i]; if (!e || e.t !== t || e.tier !== 'R') return;
-      cur.entries = cur.entries.filter(x => x !== e);
-      // The weekly Radarr job would otherwise re-add it while Radarr still wants it.
-      if (!(cur.declined ||= []).some(d => d.t === t)) cur.declined.push({ t, title: name(t), ...(tm ? { tmdb: tm } : {}), date: today(), from: 'rent' });
-    }, `Remove from rent list: ${name(t)}`, 'Removed. It won\u2019t come back.');
-  }
-  else if (a === 'retry-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'retry'; }, `Search TMDB again: ${name(id)} [enrich]`, 'Searching again. Check back in a few minutes.');
-  else if (a === 'no-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'none'; }, `Mark as not on TMDB: ${name(id)} [enrich]`, 'Saved');
-  else if (a === 'reload') { S.error = null; await load(); toast(S.error ? S.error : 'Up to date', !!S.error); }
-  else if (a === 'signout') { setAuth(null); await cacheClear(); location.hash = ''; location.reload(); }
+  const fn = ACTIONS[el.dataset.act]; if (!fn) return;
+  if (el.tagName === 'A') ev.preventDefault();
+  await fn(el, el.dataset.id || el.closest('form')?.dataset.id, ev);
 });
 sheet.addEventListener('click', (ev) => { if (ev.target === sheet) closeSheet(); });
+// A poster that fails to load falls back to its placeholder styling. (Done here
+// rather than with onerror="…", which the content security policy forbids.)
+document.addEventListener('error', (ev) => { const img = ev.target; if (img?.tagName === 'IMG' && img.getAttribute('src')) img.removeAttribute('src'); }, true);
 
 // ---------------------------------------------------------------- view options
 document.addEventListener('change', (ev) => {
   const k = ev.target.dataset?.ui; if (!k) return;
-  ui[k] = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value; remember(); render();
+  ui[k] = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value; remember();
+  // A new audience makes the last pick beside the point.
+  if (k === 'rollAud') Roll.R.current = null;
+  render();
 });
 document.addEventListener('input', (ev) => { if (ev.target.id === 'q') { ui.q = ev.target.value; clearTimeout(render.t); render.t = setTimeout(render, 120); } });
 document.addEventListener('toggle', (ev) => {
@@ -222,6 +288,11 @@ document.addEventListener('submit', async (ev) => {
     } catch (e) { loginError = e.message; render(); }
   }
   else if (kind === 'search') { ui.q = d.q; render(); }
+  else if (kind === 'radarr') {
+    try { const base = setRadarrBase(d.url); radarrError = null; toast(base ? 'Radarr address saved' : 'Radarr address removed'); }
+    catch (e) { radarrError = e.message; }
+    render();
+  }
   else if (kind === 'entry') {
     const i = f.dataset.i === '' ? null : Number(f.dataset.i);
     const fallback = SECTION_FOR(d);
@@ -287,5 +358,5 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && ge
 // while a match fix or a new title is waiting for the TMDB lookup, check for the result every 25 seconds
 setInterval(() => { if (getAuth() && S.loaded && !S.saving && !S.syncing && !document.hidden && (Object.keys(S.cur.matchOverrides || {}).length || (S.cur.added || []).length)) load(); }, 25000);
 render();
-if (getAuth()) load();
+if (!framed && getAuth()) load();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

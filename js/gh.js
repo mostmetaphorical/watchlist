@@ -10,11 +10,15 @@ export function setAuth(a) {
 
 // ---------------------------------------------------------------- tiny IndexedDB key-value store
 const DB = 'film-school', STORE = 'kv';
+// One connection for the life of the page. It steps aside if another tab (or a
+// sign-out elsewhere) needs to upgrade or delete the database.
+let dbp = null;
 function idb() {
-  return new Promise((res, rej) => {
+  return dbp ||= new Promise((res, rej) => {
     const r = indexedDB.open(DB, 1);
     r.onupgradeneeded = () => r.result.createObjectStore(STORE);
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    r.onsuccess = () => { const db = r.result; db.onversionchange = () => { db.close(); dbp = null; }; res(db); };
+    r.onerror = () => { dbp = null; rej(r.error); };
   });
 }
 export async function cacheGet(key) {

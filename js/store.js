@@ -7,11 +7,13 @@ import { getAuth, readFile, writeFile, GitHubError } from './gh.js';
 // Drawing first and filling in after is the difference between a 6 MB wait and
 // a 1.5 MB one on a phone.
 const CORE = { titles: 'data/titles.json', curation: 'data/curation.json', letterboxd: 'data/letterboxd.json' };
-const EXTRA = { details: 'data/details.json', people: 'data/people.json' };
+// Radarr and We Luv Video availability are optional: they appear once the data
+// repo's GitHub Actions have run, and the app simply shows less until then.
+const EXTRA = { details: 'data/details.json', people: 'data/people.json', radarr: 'data/radarr.json', wlv: 'data/wlv.json' };
 const FILES = { ...CORE, ...EXTRA };
 const listeners = new Set();
 export const S = {
-  titles: [], byId: new Map(), people: {}, cur: null, lb: null,
+  titles: [], byId: new Map(), people: {}, cur: null, lb: null, radarr: null, wlv: null,
   shas: {}, loaded: false, syncing: false, error: null, errorStatus: null, offline: false, extras: false, details: null, saving: 0,
 };
 export const onChange = (fn) => (listeners.add(fn), () => listeners.delete(fn));
@@ -76,6 +78,8 @@ function apply(name, text) {
   else if (name === 'people') S.people = j;
   else if (name === 'curation') S.cur = j;
   else if (name === 'letterboxd') S.lb = j;
+  else if (name === 'radarr') S.radarr = j;
+  else if (name === 'wlv') S.wlv = j;
 }
 // details.json is keyed by title id; fold it back onto the records in memory so
 // every reader can keep using t.credits and t.overview.
@@ -95,8 +99,12 @@ export async function load() {
     const results = await Promise.all(Object.entries(group).map(async ([name, path]) => [name, await readFile(auth, path)]));
     for (const [name, f] of results) {
       if (!f) { if (name === 'titles' || name === 'curation') throw new GitHubError(404, `The data repo has no ${FILES[name]}.`); continue; }
-      S.shas[name] = f.sha; if (f.offline) S.offline = true;
-      if (f.changed || !S.loaded) { apply(name, f.text); changed = true; }
+      if (f.offline) S.offline = true;
+      // Apply each version of a file once. Keyed on the blob sha rather than on
+      // "changed since the cache", so a file that was cached on a previous visit
+      // is still applied on this one.
+      if (S.shas[name] === f.sha) continue;
+      S.shas[name] = f.sha; apply(name, f.text); changed = true;
     }
   };
   try {

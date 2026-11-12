@@ -1,6 +1,7 @@
 // Views. Each returns an HTML string; main.js wires up events by data-act / data-form.
 import { S, IX, title, entriesOf, verdictsOf, lbOf, diaryOf, pitchOf, seen, open } from './store.js';
 import { esc, md, frontMatter, noteSections, splitQuestions } from './md.js';
+import { availMarks, availBlock, wlvOf, wlvUrl, radarrBase } from './avail.js';
 
 export const IMG = 'https://image.tmdb.org/t/p/';
 export const ENERGY = { light: 'Light night', dense: 'Dense night', heavy: 'Heavy token' };
@@ -39,7 +40,7 @@ export function runtime(t) {
 }
 const initials = (s) => String(s).replace(/^(the|a|an)\s+/i, '').split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
 export function poster(t, size = 'w154', cls = '') {
-  if (t?.poster) return `<img class="poster ${cls}" src="${IMG}${size}${esc(t.poster)}" alt="" loading="lazy" decoding="async" onerror="this.removeAttribute('src')">`;
+  if (t?.poster) return `<img class="poster ${cls}" src="${IMG}${size}${esc(t.poster)}" alt="" loading="lazy" decoding="async">`;
   return `<span class="poster ph ${cls}" data-kind="${esc(t?.kind || '')}" aria-hidden="true">${esc(initials(t?.title || '?'))}</span>`;
 }
 function metaLine(t) {
@@ -50,7 +51,7 @@ function marks(id) {
   if (s.together) out.push('<span class="mark both" title="Watched together">Seen together</span>');
   else { if (s.tristan) out.push('<span class="mark">Tristan’s seen it</span>'); if (s.meta) out.push('<span class="mark">You’ve seen it</span>'); }
   if (l?.rating) out.push(`<span class="mark rating" title="Your Letterboxd rating">${stars(l.rating)}</span>`);
-  return out.join('');
+  return out.join('') + availMarks(id);
 }
 export const stars = (r) => '★'.repeat(Math.floor(r)) + (r % 1 ? '½' : '');
 
@@ -150,13 +151,16 @@ export function together(ui) {
       <p class="hint">${esc(hint || '')}</p>${rowsFor(ui.night, true, true)}</section>`;
   }
 
-  return `<header class="view-head"><h1>Together</h1>${syncNote()}</header>
+  return `<header class="view-head"><h1>Together</h1>${rollButton('together')}${syncNote()}</header>
     <div class="vibes" role="tablist" aria-label="What kind of night?">
       ${NIGHTS.map(([v, l]) => `<button type="button" role="tab" aria-selected="${ui.night === v}" data-act="night" data-v="${v}" data-energy="${v === 'all' ? '' : v}"><span>${l}</span><span class="n-count">${count(v)}</span></button>`).join('')}
     </div>
     ${filters(ui, ['kind'])}
     ${body || empty(ui.showSeen ? 'Nothing here yet.' : 'Everything on this shelf is watched. Turn on “Show watched” to see it.')}`;
 }
+
+// A dice button in a list's header: rolls from that list.
+const rollButton = (aud) => `<button class="roll-mini" type="button" data-act="roll-from" data-v="${aud}" aria-label="Pick something at random from this list" title="Roll the dice">${ICON.dice}</button>`;
 
 // ---------------------------------------------------------------- Solo + Tristan
 export function solo(ui) {
@@ -169,7 +173,7 @@ export function solo(ui) {
     return shelf(ui, 'solo:' + s, `${esc(s)} <span class="count">${list.length}</span>`,
       `<div class="rows">${list.map(e => row(e.t, { entry: e, pitch: false })).join('')}</div>`, order.indexOf(s) === 0);
   }).join('');
-  return `<header class="view-head"><h1>Solo</h1>${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}`;
+  return `<header class="view-head"><h1>Solo</h1>${rollButton('solo')}${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}`;
 }
 // A played pick comes back after six months so it can go on the screens again.
 export const PLAY_RESET_DAYS = 183;
@@ -274,16 +278,18 @@ export function titlePage(id, ui, note) {
   const t = title(id);
   if (!t) return `<header class="view-head"><h1>Not found</h1></header>${empty('That title isn’t in your data. It may have been merged with another one.', '<a class="btn" href="#/search">Search</a>')}`;
   const es = entriesOf(t.id), vs = verdictsOf(t.id), l = lbOf(t.id), di = diaryOf(t.id), p = pitchOf(t.id), s = seen(t.id);
-  const lbUrl = t.lb && !t.lb.startsWith('name:') ? t.lb : t.tmdb?.type === 'movie' ? `https://letterboxd.com/tmdb/${t.tmdb.id}/` : `https://letterboxd.com/search/${encodeURIComponent(t.title)}/`;
+  // Radarr-added films carry a bare TMDB number until the enrich job runs.
+  const tm = t.tmdb && typeof t.tmdb === 'object' ? t.tmdb : t.tmdb ? { type: 'movie', id: t.tmdb } : null;
+  const lbUrl = /^https:\/\/(letterboxd\.com|boxd\.it)\//.test(t.lb || '') ? t.lb : tm?.type === 'movie' ? `https://letterboxd.com/tmdb/${tm.id}/` : `https://letterboxd.com/search/${encodeURIComponent(t.title)}/`;
   const imdbUrl = t.imdb ? `https://www.imdb.com/title/${t.imdb}/` : `https://www.imdb.com/find/?q=${encodeURIComponent(t.title + (t.year ? ' ' + t.year : ''))}`;
-  const tmdbUrl = t.tmdb ? `https://www.themoviedb.org/${t.tmdb.type}/${t.tmdb.id}` : `https://www.themoviedb.org/search?query=${encodeURIComponent(t.title)}`;
+  const tmdbUrl = tm ? `https://www.themoviedb.org/${tm.type}/${tm.id}` : `https://www.themoviedb.org/search?query=${encodeURIComponent(t.title)}`;
   const tristanish = es.some(e => ['B', 'B?', 'T'].includes(e.tier));
 
   // credits grouped by role
   const credits = {};
   for (const c of t.credits || []) (credits[c.r] ||= []).push(c);
   const creditHtml = Object.keys(credits).sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]).map(r =>
-    `<div class="credit"><dt>${ROLE[r]}</dt><dd>${credits[r].sort((a, b) => (a.o ?? 0) - (b.o ?? 0)).map(c => `<a href="#/p/${c.p}">${esc(S.people[c.p]?.name || c.p)}</a>${c.c && r === 'actor' ? ` <span class="as">as ${esc(c.c)}</span>` : ''}`).join(', ')}</dd></div>`).join('');
+    `<div class="credit"><dt>${ROLE[r]}</dt><dd>${credits[r].sort((a, b) => (a.o ?? 0) - (b.o ?? 0)).map(c => `<a href="#/p/${encodeURIComponent(c.p)}">${esc(S.people[c.p]?.name || c.p)}</a>${c.c && r === 'actor' ? ` <span class="as">as ${esc(c.c)}</span>` : ''}`).join(', ')}</dd></div>`).join('');
 
   const near = similarTo(t);
   const similarHtml = near.length >= 3 ? `<section class="block"><h2>More like this</h2>
@@ -315,26 +321,27 @@ export function titlePage(id, ui, note) {
     : t.match === 'none' && t.kind !== 'standup' ? `<section class="block warn-block"><h2>Marked as not on TMDB</h2><p class="hint">No poster, credits or cross-links for this one. Changed your mind, or has it been added to TMDB since?</p>${fixBtns}</section>`
     : t.match === 'review' && t.candidates?.length ? `<section class="block warn-block"><h2>Is this the right ${t.kind === 'series' ? 'show' : 'film'}?</h2>
       <p class="hint">The TMDB lookup wasn’t sure. Pick the right one and the details update on the next lookup run.</p>
-      <div class="cands">${t.candidates.map(c => `<button class="cand" data-act="pick-match" data-id="${esc(t.id)}" data-type="${c.type}" data-tmdb="${c.id}">${c.poster ? `<img src="${IMG}w154${esc(c.poster)}" alt="" loading="lazy">` : '<span class="poster ph"></span>'}<span>${esc(c.title)} <em>${esc(c.year || '')}</em> <small>${c.type === 'tv' ? 'series' : 'film'}</small></span></button>`).join('')}</div>
+      <div class="cands">${t.candidates.map(c => `<button class="cand" data-act="pick-match" data-id="${esc(t.id)}" data-type="${esc(c.type)}" data-tmdb="${esc(c.id)}">${c.poster ? `<img src="${IMG}w154${esc(c.poster)}" alt="" loading="lazy">` : '<span class="poster ph"></span>'}<span>${esc(c.title)} <em>${esc(c.year || '')}</em> <small>${c.type === 'tv' ? 'series' : 'film'}</small></span></button>`).join('')}</div>
       <button class="btn ghost small" data-act="fix-match" data-id="${esc(t.id)}">None of these</button></section>`
     : t.match === 'notfound' ? `<section class="block warn-block"><h2>Not found on TMDB</h2><p class="hint">The search came back empty. Paste the link if you can find it, or try the search again.</p>${fixBtns}</section>`
     : t.match === 'pending' ? `<p class="hint block">Poster, credits and links appear after the next TMDB lookup (usually within a few minutes).</p>` : '';
 
   return `<article class="title-page">
     <header class="tp-head">
-      <a class="back" href="javascript:history.back()">Back</a>
+      <a class="back" href="#/together" data-act="back">Back</a>
       <div class="tp-top">${poster(t, 'w342', 'big')}
         <div class="tp-id">
           <h1>${esc(t.title)}</h1>
           ${t.original && t.original !== t.title ? `<p class="orig">${esc(t.original)}</p>` : ''}
           <p class="row-meta">${metaLine(t)}</p>
           ${t.genres?.length ? `<p class="genres">${esc(t.genres.join(', '))}</p>` : ''}
-          <div class="ext"><a href="${esc(lbUrl)}" target="_blank" rel="noopener">Letterboxd</a><a href="${esc(imdbUrl)}" target="_blank" rel="noopener">IMDb</a><a href="${esc(tmdbUrl)}" target="_blank" rel="noopener">TMDB</a></div>
+          <div class="ext"><a href="${esc(lbUrl)}" target="_blank" rel="noopener noreferrer">Letterboxd</a><a href="${esc(imdbUrl)}" target="_blank" rel="noopener noreferrer">IMDb</a><a href="${esc(tmdbUrl)}" target="_blank" rel="noopener noreferrer">TMDB</a></div>
         </div>
       </div>
     </header>
     ${matchHtml}
     ${t.overview || t.syn ? `<section class="block synopsis"><h2>What it is</h2><p class="prose">${esc(t.overview || t.syn)}</p><p class="hint">From TMDB — may contain spoilers for the setup.</p></section>` : ''}
+    ${availBlock(t)}
     ${p || tristanish ? `<section class="pitch"><h2>The pitch for Tristan</h2>${p ? `<blockquote>${esc(p)}</blockquote>` : '<p class="hint">No pitch yet.</p>'}<button class="btn ghost small" data-act="edit-pitch" data-id="${esc(t.id)}">${p ? 'Edit pitch' : 'Write a pitch'}</button></section>` : ''}
     <section class="block"><h2>On your lists</h2>
       ${es.length ? `<ul class="placements">${es.map((e, i) => `<li><button class="placement" data-act="edit-entry" data-id="${esc(t.id)}" data-i="${i}" data-energy="${esc(e.energy || (e.tier === 'B?' ? 'test' : ''))}">
@@ -369,10 +376,10 @@ export function personPage(pid, ui) {
   if (!person) return `<header class="view-head"><h1>Unknown person</h1></header>`;
   const byRole = {};
   for (const r of rows) for (const role of r.r) (byRole[role] ||= []).push(r);
-  return `<header class="view-head person-head"><a class="back" href="javascript:history.back()">Back</a>
+  return `<header class="view-head person-head"><a class="back" href="#/together" data-act="back">Back</a>
       ${person.img ? `<img class="headshot" src="${IMG}w185${esc(person.img)}" alt="">` : ''}
       <h1>${esc(person.name)}</h1>${person.dept ? `<p class="hint">Known for ${esc(person.dept.toLowerCase())}</p>` : ''}
-      <p class="ext"><a href="https://www.themoviedb.org/person/${esc(pid.slice(1))}" target="_blank" rel="noopener">TMDB</a><a href="https://letterboxd.com/search/${encodeURIComponent(person.name)}/" target="_blank" rel="noopener">Letterboxd</a></p></header>
+      <p class="ext"><a href="https://www.themoviedb.org/person/${esc(pid.slice(1))}" target="_blank" rel="noopener noreferrer">TMDB</a><a href="https://letterboxd.com/search/${encodeURIComponent(person.name)}/" target="_blank" rel="noopener noreferrer">Letterboxd</a></p></header>
     <p class="lede">${rows.length} title${rows.length === 1 ? '' : 's'} in your lists and Letterboxd.</p><div class="filters">${viewToggle()}</div>
     ${Object.keys(byRole).sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]).map(role => shelf(ui, `person:${pid}:${role}`,
       `${ROLE[role]} <span class="count">${byRole[role].length}</span>`,
@@ -389,6 +396,7 @@ const ICON = {
   tray: sv('<path d="M3 13.5V18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4.5"/><path d="M3 13.5h5l1.2 2h5.6l1.2-2h5"/><path d="M12 3v7m0 0 2.6-2.6M12 10 9.4 7.4"/>'),
   verify: sv('<path d="M7 4h7l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v4h4"/><path d="M9 14l2.2 2.2L15.5 12"/>'),
   star: sv('<path d="M12 3.6l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.6 9.7l5.8-.8z"/>'),
+  dice: sv('<rect x="3" y="7" width="12" height="12" rx="2.5"/><path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3H18.5A2.5 2.5 0 0 1 21 5.5V12.5A2.5 2.5 0 0 1 18.5 15H15"/><circle cx="6.5" cy="10.5" r=".9" fill="currentColor" stroke="none"/><circle cx="11.5" cy="15.5" r=".9" fill="currentColor" stroke="none"/><circle cx="9" cy="13" r=".9" fill="currentColor" stroke="none"/><circle cx="17.5" cy="6.5" r=".9" fill="currentColor" stroke="none"/>'),
   disc: sv('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.6"/><path d="M12 3a9 9 0 0 1 7.5 4"/>'),
   gear: sv('<circle cx="12" cy="12" r="3"/><path d="M19.1 14.7a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-2.6 1.1v.2a1.8 1.8 0 0 1-3.6 0v-.1a1.5 1.5 0 0 0-2.6-1.1l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0-1.1-2.6h-.2a1.8 1.8 0 0 1 0-3.6h.1a1.5 1.5 0 0 0 1.1-2.6l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4v-.2a1.8 1.8 0 0 1 3.6 0v.1a1.5 1.5 0 0 0 2.6 1.1l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.8 1.8 0 0 1 0 3.6h-.1a1.5 1.5 0 0 0-1.4.9z"/>'),
 };
@@ -397,6 +405,7 @@ export function more() {
   const review = S.titles.filter(t => (t.match === 'review' || t.match === 'notfound') && !S.cur.matchOverrides?.[t.id]).length;
   const unsorted = unsortedIds().length;
   const tiles = [
+    ['#/roll', 'Roll the dice', ICON.dice, 0],
     ['#/tristan', 'Tristan’s queue', ICON.wolf, S.cur.entries.filter(e => onShelf(e) && e.tier === 'T' && open(e)).length],
     ['#/store', 'Store picks', ICON.tape, S.cur.entries.filter(e => onShelf(e) && e.tier === 'W').length],
     ['#/incoming', 'Incoming', ICON.inbox, S.cur.entries.filter(e => e.auto).length],
@@ -449,11 +458,12 @@ export function incoming(ui) {
 function rentRow(e, i) {
   const t = title(e.t); if (!t) return '';
   const at = e.wlv === 'yes';
+  const href = wlvUrl(wlvOf(e.t)?.items?.[0]?.slug || e.wlvSlug);
   // The note is the stock line, which the footer already shows.
   return `<div class="irow${e.rented ? ' is-played' : ''}">
     ${row(e.t, { entry: { ...e, note: undefined }, marks: false })}
     <div class="irow-foot">
-      <span class="suggest">${e.rented ? `Rented ${esc(e.rented)}` : esc(e.note || (at ? 'In stock' : 'Stock not confirmed'))}${e.shelf ? ` \u00b7 ${esc(e.shelf)}` : ''}</span>
+      <span class="suggest">${e.rented ? `Rented ${esc(e.rented)}` : esc(e.note || (at ? 'In stock' : 'Stock not confirmed'))}${e.shelf ? ` \u00b7 ${esc(e.shelf)}` : ''}${href ? ` <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open in the store</a>` : ''}</span>
       <span class="irow-acts">
         <button class="btn small${e.rented ? ' ghost' : ''}" data-act="${e.rented ? 'unrent' : 'rent'}" data-t="${esc(e.t)}" data-i="${i}">${e.rented ? 'Put back' : 'Rented'}</button>
         <button class="btn small ghost" data-act="drop-rent" data-t="${esc(e.t)}" data-i="${i}">Remove</button>
@@ -488,7 +498,7 @@ export function search(q) {
       .sort((a, b) => (n(b.title).startsWith(nq) - n(a.title).startsWith(nq)) || (entriesOf(b.id).length - entriesOf(a.id).length)).slice(0, 40);
     res = hits.map(t => row(t.id, { entry: entriesOf(t.id)[0] })).join('') || '<p class="hint">No titles match.</p>';
     const ph = Object.entries(S.people).filter(([, p]) => n(p.name).includes(nq)).sort((a, b) => (IX.person.get(b[0])?.length || 0) - (IX.person.get(a[0])?.length || 0)).slice(0, 12);
-    ppl = ph.map(([id, p]) => `<a class="person-row" href="#/p/${id}">${p.img ? `<img src="${IMG}w92${esc(p.img)}" alt="" loading="lazy">` : '<span class="poster ph small"></span>'}<span>${esc(p.name)}</span><span class="count">${IX.person.get(id)?.length || 0}</span></a>`).join('');
+    ppl = ph.map(([id, p]) => `<a class="person-row" href="#/p/${encodeURIComponent(id)}">${p.img ? `<img src="${IMG}w92${esc(p.img)}" alt="" loading="lazy">` : '<span class="poster ph small"></span>'}<span>${esc(p.name)}</span><span class="count">${IX.person.get(id)?.length || 0}</span></a>`).join('');
   }
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Search</h1></header>
     <form class="search" data-form="search" role="search"><label class="sr" for="q">Title or person</label><input id="q" name="q" type="search" value="${esc(q)}" placeholder="Title or person" autocomplete="off" autofocus></form>
@@ -603,12 +613,20 @@ export function addForm() {
       <p class="hint">The poster, credits and links are looked up on TMDB within a few minutes.</p>
     </form>`;
 }
-export function settings(auth, build) {
+export function settings(auth, build, radarrError) {
+  const base = radarrBase();
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Settings</h1></header>
+    <h2>Radarr</h2>
+    <form data-form="radarr" class="page-form">
+      <label>Radarr address<input name="url" type="url" inputmode="url" value="${esc(base)}" placeholder="https://radarr.example.com" autocapitalize="off" autocomplete="off" spellcheck="false"></label>
+      ${radarrError ? `<p class="error" role="alert">${esc(radarrError)}</p>` : ''}
+      <div class="actions left"><button class="btn">Save</button>${base ? '<button type="button" class="btn ghost" data-act="radarr-clear">Remove</button>' : ''}</div>
+      <p class="hint">The one you open Radarr with in a browser. Kept on this device only and used just to build “Open in Radarr” links; the app never connects to Radarr. Which films are on disk comes from the weekly sync in the data repo.</p>
+    </form>
     <h2>Data</h2>
     <dl class="kv"><dt>Data repo</dt><dd>${esc(auth?.repo || '')} (${esc(auth?.branch || 'main')})</dd><dt>Token</dt><dd>…${esc((auth?.token || '').slice(-6))}</dd><dt>App version</dt><dd>${esc(build || '—')}</dd></dl>
     <div class="actions left"><button class="btn ghost" data-act="reload">Reload data</button><button class="btn ghost danger" data-act="signout">Sign out on this device</button></div>
-    <p class="hint">Signing out removes the token and the offline copy from this device only.</p>`;
+    <p class="hint">Signing out removes the token, the Radarr address and the offline copy from this device only.</p>`;
 }
 export function login(cfg, error) {
   return `<main class="login">
