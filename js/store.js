@@ -1,11 +1,18 @@
 // Data store: loads the four data files, builds indexes, and saves edits back to GitHub.
 import { getAuth, readFile, writeFile, GitHubError } from './gh.js';
 
-const FILES = { titles: 'data/titles.json', people: 'data/people.json', curation: 'data/curation.json', letterboxd: 'data/letterboxd.json' };
+// Two tiers. CORE is what a list needs and is fetched before anything is drawn;
+// EXTRA is credits, full synopses and the people index, which only the title,
+// person and search views need, and which together outweigh CORE three to one.
+// Drawing first and filling in after is the difference between a 6 MB wait and
+// a 1.5 MB one on a phone.
+const CORE = { titles: 'data/titles.json', curation: 'data/curation.json', letterboxd: 'data/letterboxd.json' };
+const EXTRA = { details: 'data/details.json', people: 'data/people.json' };
+const FILES = { ...CORE, ...EXTRA };
 const listeners = new Set();
 export const S = {
   titles: [], byId: new Map(), people: {}, cur: null, lb: null,
-  shas: {}, loaded: false, syncing: false, error: null, errorStatus: null, offline: false, saving: 0,
+  shas: {}, loaded: false, syncing: false, error: null, errorStatus: null, offline: false, extras: false, details: null, saving: 0,
 };
 export const onChange = (fn) => (listeners.add(fn), () => listeners.delete(fn));
 const emit = () => listeners.forEach(fn => fn());
@@ -65,24 +72,50 @@ export function open(e) {
 function apply(name, text) {
   const j = JSON.parse(text);
   if (name === 'titles') S.titles = j;
+  else if (name === 'details') { S.details = j; mergeDetails(); }
   else if (name === 'people') S.people = j;
   else if (name === 'curation') S.cur = j;
   else if (name === 'letterboxd') S.lb = j;
 }
+// details.json is keyed by title id; fold it back onto the records in memory so
+// every reader can keep using t.credits and t.overview.
+function mergeDetails() {
+  if (!S.details) return;
+  for (const t of S.titles) {
+    const d = S.details[t.id];
+    if (d) { if (d.credits) t.credits = d.credits; if (d.overview) t.overview = d.overview; }
+  }
+}
+
 export async function load() {
   const auth = getAuth(); if (!auth) return;
   S.syncing = true; S.error = null; S.errorStatus = null; emit();
   let changed = false;
-  try {
-    const results = await Promise.all(Object.entries(FILES).map(async ([name, path]) => [name, await readFile(auth, path)]));
+  const take = async (group) => {
+    const results = await Promise.all(Object.entries(group).map(async ([name, path]) => [name, await readFile(auth, path)]));
     for (const [name, f] of results) {
       if (!f) { if (name === 'titles' || name === 'curation') throw new GitHubError(404, `The data repo has no ${FILES[name]}.`); continue; }
-      S.shas[name] = f.sha; S.offline = !!f.offline;
+      S.shas[name] = f.sha; if (f.offline) S.offline = true;
       if (f.changed || !S.loaded) { apply(name, f.text); changed = true; }
     }
+  };
+  try {
+    S.offline = false;
+    await take(CORE);
     if (!S.lb) S.lb = { films: {}, diary: [], lists: {} };
     if (changed) rebuild();
     S.loaded = true;
+    S.syncing = false; emit();            // draw the lists now
+
+    // The rest arrives behind the first paint. Failing here is not fatal: the
+    // lists already work, so only the title, person and search views are thinner.
+    try {
+      changed = false;
+      await take(EXTRA);
+      if (changed) { mergeDetails(); rebuild(); }
+      S.extras = true;
+    } catch { S.extras = false; }
+    return;
   } catch (e) {
     S.error = e.message || String(e);
     S.errorStatus = e.status ?? 0;

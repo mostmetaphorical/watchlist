@@ -20,6 +20,8 @@ export function viewToggle() {
   return `<div class="viewsw" role="group" aria-label="View">${[['list', 'List'], ['posters', 'Posters']].map(([v, l]) => `<button type="button" data-act="layout" data-v="${v}" aria-pressed="${LAYOUT === v}">${l}</button>`).join('')}</div>`;
 }
 function byline(t) {
+  // Precomputed in the data so a row reads right before credits.json arrives.
+  if (!t.credits) return t.by || '';
   const names = (r) => [...new Set((t.credits || []).filter(c => c.r === r).map(c => S.people[c.p]?.name).filter(Boolean))];
   const d = names('director'), w = names('writer').slice(0, 3), cr = names('creator');
   if (t.kind === 'series') return cr.length ? `Created by ${cr.join(', ')}` : d.length ? `Directed by ${d.join(', ')}` : '';
@@ -67,7 +69,7 @@ export function row(id, opts = {}) {
       <span class="row-meta">${metaLine(t)}</span>
       ${by ? `<span class="row-by">${esc(by)}</span>` : ''}
       ${p ? `<span class="row-pitch">${esc(p)}</span>` : e?.note && opts.note !== false ? `<span class="row-pitch note">${esc(e.note)}</span>` : ''}
-      ${t.overview ? `<span class="row-syn">${esc(t.overview)}</span>` : ''}
+      ${t.overview || t.syn ? `<span class="row-syn">${esc(t.overview || t.syn)}</span>` : ''}
       ${opts.marks !== false ? `<span class="row-marks">${marks(t.id)}${t.match === 'pending' ? '<span class="mark">Looking it up</span>' : ''}</span>` : ''}
     </span>
   </a>`;
@@ -332,7 +334,7 @@ export function titlePage(id, ui, note) {
       </div>
     </header>
     ${matchHtml}
-    ${t.overview ? `<section class="block synopsis"><h2>What it is</h2><p class="prose">${esc(t.overview)}</p><p class="hint">From TMDB — may contain spoilers for the setup.</p></section>` : ''}
+    ${t.overview || t.syn ? `<section class="block synopsis"><h2>What it is</h2><p class="prose">${esc(t.overview || t.syn)}</p><p class="hint">From TMDB — may contain spoilers for the setup.</p></section>` : ''}
     ${p || tristanish ? `<section class="pitch"><h2>The pitch for Tristan</h2>${p ? `<blockquote>${esc(p)}</blockquote>` : '<p class="hint">No pitch yet.</p>'}<button class="btn ghost small" data-act="edit-pitch" data-id="${esc(t.id)}">${p ? 'Edit pitch' : 'Write a pitch'}</button></section>` : ''}
     <section class="block"><h2>On your lists</h2>
       ${es.length ? `<ul class="placements">${es.map((e, i) => `<li><button class="placement" data-act="edit-entry" data-id="${esc(t.id)}" data-i="${i}" data-energy="${esc(e.energy || (e.tier === 'B?' ? 'test' : ''))}">
@@ -350,7 +352,8 @@ export function titlePage(id, ui, note) {
       <p class="lbline">${l?.rating ? `<span class="rating">${stars(l.rating)}</span>` : ''}${l?.liked ? '<span>Liked</span>' : ''}${l?.favourite ? '<span>One of your four favourites</span>' : ''}${l?.watched ? `<span>Logged as watched ${esc(l.watched)}</span>` : ''}${l?.watchlist && !l?.watched ? `<span>On your Letterboxd watchlist since ${esc(l.watchlist)}</span>` : ''}</p>
       ${di.map(d => `<div class="diary"><p class="hint">${esc(d.date || d.logged)}${d.rating ? ' — ' + stars(d.rating) : ''}${d.rewatch ? ' — rewatch' : ''}${d.tags?.length ? ' — ' + esc(d.tags.join(', ')) : ''}</p>${d.review ? `<div class="prose review">${md(d.review)}</div>` : ''}</div>`).join('')}
       </section>` : ''}
-    ${creditHtml ? `<section class="block"><h2>Credits</h2><dl class="credits">${creditHtml}</dl></section>` : ''}
+    ${creditHtml ? `<section class="block"><h2>Credits</h2><dl class="credits">${creditHtml}</dl></section>`
+      : !S.extras ? '<section class="block"><h2>Credits</h2><p class="hint">Still loading.</p></section>' : ''}
     ${similarHtml}
     <p class="fine">
       ${t.match !== 'review' && t.match !== 'notfound' && t.kind !== 'standup' ? `<button class="linkish" data-act="fix-match" data-id="${esc(t.id)}">Wrong film or show? Fix the match</button><br>` : ''}
