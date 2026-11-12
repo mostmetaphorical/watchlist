@@ -38,8 +38,9 @@ export const radarrUrl = (slug) => {
 // ---------------------------------------------------------------- pieces of HTML
 const link = (href, label) => href ? ` <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>` : '';
 const fmtDate = (d) => { const t = Date.parse(d); return Number.isNaN(t) ? '' : new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); };
-const stockLine = (i) => (i.formats || []).map(f => `${f.format} ${f.onShelf}/${f.total}`).join(', ') ||
-  (i.total ? `${i.onShelf ?? '?'} of ${i.total} on the shelf` : 'in the catalogue');
+// Which formats the shop carries ("DVD, VHS"). Whether a copy is on the shelf
+// today is deliberately not shown: the store page answers that live.
+export const formatsOf = (i) => [...new Set((i.formats || []).map(f => (typeof f === 'string' ? f : f.format)).filter(Boolean))].join(', ');
 
 export const isFilm = (t) => t && t.kind !== 'series' && t.kind !== 'standup' && t.tmdb?.type !== 'tv';
 
@@ -60,10 +61,12 @@ export function availBlock(t) {
   const w = wlvOf(t.id);
   if (w) {
     const items = (w.items || []).filter(i => wlvUrl(i.slug));
-    if (items.length) {
-      const multi = items.length > 1;
-      lines.push(`<li><span class="src">We Luv Video</span><span>${items.map(i =>
-        `${multi ? `${esc(i.name)}: ` : ''}<strong>${esc(stockLine(i))}</strong>${link(wlvUrl(i.slug), multi ? 'Open' : 'Open in the store')}`).join('<br>')}</span></li>`);
+    if (items.length > 1) {
+      lines.push(`<li><span class="src">We Luv Video</span><span><strong>Stocks it</strong>${items.map(i =>
+        `<br>${esc(i.name)}${formatsOf(i) ? ` <small>(${esc(formatsOf(i))})</small>` : ''}${link(wlvUrl(i.slug), 'Open')}`).join('')}</span></li>`);
+    } else if (items.length) {
+      const i = items[0];
+      lines.push(`<li><span class="src">We Luv Video</span><span><strong>Stocks it</strong>${formatsOf(i) ? ` <small>(${esc(formatsOf(i))})</small>` : ''}${link(wlvUrl(i.slug), 'Open in the store')}</span></li>`);
     } else lines.push(`<li><span class="src">We Luv Video</span><span>Not in the catalogue${w.checked ? ` <small>(checked ${esc(fmtDate(w.checked))})</small>` : ''}</span></li>`);
   }
   if (!lines.length) return '';

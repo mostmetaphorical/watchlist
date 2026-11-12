@@ -1,7 +1,7 @@
 // Views. Each returns an HTML string; main.js wires up events by data-act / data-form.
 import { S, IX, title, entriesOf, verdictsOf, lbOf, diaryOf, pitchOf, seen, open } from './store.js';
 import { esc, md, frontMatter, noteSections, splitQuestions } from './md.js';
-import { availMarks, availBlock, wlvOf, wlvUrl, radarrBase } from './avail.js';
+import { availMarks, availBlock, wlvOf, wlvUrl, atWlv, formatsOf, radarrBase } from './avail.js';
 
 export const IMG = 'https://image.tmdb.org/t/p/';
 export const ENERGY = { light: 'Light night', dense: 'Dense night', heavy: 'Heavy token' };
@@ -46,12 +46,21 @@ export function poster(t, size = 'w154', cls = '') {
 function metaLine(t) {
   return [t.year, runtime(t), t.kind === 'series' ? 'Series' : t.kind === 'standup' ? 'Stand-up' : ''].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
 }
-function marks(id) {
+function marks(id, verdictShown = false) {
   const s = seen(id), l = lbOf(id), out = [];
-  if (s.together) out.push('<span class="mark both" title="Watched together">Seen together</span>');
-  else { if (s.tristan) out.push('<span class="mark">Tristan’s seen it</span>'); if (s.meta) out.push('<span class="mark">You’ve seen it</span>'); }
+  // In a Watched group the verdict chip already says who saw it.
+  if (!verdictShown) {
+    if (s.together) out.push('<span class="mark both" title="Watched together">Seen together</span>');
+    else { if (s.tristan) out.push('<span class="mark">Tristan’s seen it</span>'); if (s.meta) out.push('<span class="mark">You’ve seen it</span>'); }
+  }
   if (l?.rating) out.push(`<span class="mark rating" title="Your Letterboxd rating">${stars(l.rating)}</span>`);
   return out.join('') + availMarks(id);
+}
+// "Together: Loved it" from the newest verdict, for rows in a Watched group.
+function verdictMark(id, e) {
+  const v = [...verdictsOf(id)].sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).at(-1);
+  if (v) return `<span class="mark verdict r-${esc(v.reaction)}">${esc(VIEWER[v.viewer] || '')}: ${esc(REACTION[v.reaction] || v.reaction)}</span>`;
+  return e?.status === 'dropped' ? '<span class="mark verdict">Dropped</span>' : e?.status === 'done' ? '<span class="mark verdict">Done</span>' : '';
 }
 export const stars = (r) => '★'.repeat(Math.floor(r)) + (r % 1 ? '½' : '');
 
@@ -71,7 +80,7 @@ export function row(id, opts = {}) {
       ${by ? `<span class="row-by">${esc(by)}</span>` : ''}
       ${p ? `<span class="row-pitch">${esc(p)}</span>` : e?.note && opts.note !== false ? `<span class="row-pitch note">${esc(e.note)}</span>` : ''}
       ${t.overview || t.syn ? `<span class="row-syn">${esc(t.overview || t.syn)}</span>` : ''}
-      ${opts.marks !== false ? `<span class="row-marks">${marks(t.id)}${t.match === 'pending' ? '<span class="mark">Looking it up</span>' : ''}</span>` : ''}
+      ${opts.marks !== false ? `<span class="row-marks">${opts.verdict ? verdictMark(t.id, e) : ''}${marks(t.id, opts.verdict && verdictsOf(t.id).length > 0)}${t.match === 'pending' ? '<span class="mark">Looking it up</span>' : ''}</span>` : ''}
     </span>
   </a>`;
 }
@@ -86,7 +95,6 @@ function filters(ui, keys) {
     ${keys.includes('kind') ? sel('kind', [['all', 'Films & series'], ['film', 'Films'], ['series', 'Series']], ui.kind) : ''}
     ${sel('sort', [['curated', 'List order'], ['short', 'Shortest first'], ['new', 'Newest first'], ['old', 'Oldest first'], ['az', 'A to Z']], ui.sort)}
     ${viewToggle()}
-    <label class="toggle"><input type="checkbox" data-ui="showSeen"${ui.showSeen ? ' checked' : ''}><span>Show watched</span></label>
   </div>`;
 }
 function sortEntries(list, ui) {
@@ -100,8 +108,32 @@ function sortEntries(list, ui) {
   }[ui.sort] || ((a, b) => 0);
   return [...list].sort(by);
 }
-function visible(list, ui) {
-  return list.filter(e => (ui.showSeen || open(e)) && (ui.kind === 'all' || !ui.kind || (title(e.t)?.kind || 'film') === ui.kind));
+const kindOk = (e, ui) => ui.kind === 'all' || !ui.kind || (title(e.t)?.kind || 'film') === ui.kind;
+// Still to watch on this list. Anything watched by the list's audience (a verdict,
+// or Letterboxd for solo), or marked done or dropped, moves to the Watched group.
+function visible(list, ui) { return list.filter(e => open(e) && kindOk(e, ui)); }
+function watchedOf(list, ui) { return list.filter(e => !open(e) && kindOk(e, ui)); }
+
+// When it was last watched: the newest verdict, else the Letterboxd log date.
+function lastWatched(id) {
+  const ds = verdictsOf(id).map(v => v.date).filter(Boolean).sort();
+  return ds.at(-1) || lbOf(id)?.watched || '';
+}
+// The collapsed group at the bottom of a list, newest first.
+function watchedShelf(ui, key, list, rowOpts = {}) {
+  if (!list.length) return '';
+  const seenRows = [...list].sort((a, b) => String(lastWatched(b.t)).localeCompare(String(lastWatched(a.t))) || (a.order ?? 0) - (b.order ?? 0));
+  return shelf(ui, key + ':watched', `Watched <span class="count">${seenRows.length}</span>`,
+    `<p class="hint">Off the list once there’s a verdict. Newest first.</p><div class="rows">${seenRows.map(e => row(e.t, { ...rowOpts, entry: e, verdict: true })).join('')}</div>`,
+    false, 'group shelf watched');
+}
+
+// Shelf names in the order curation.sectionOrder gives; anything not listed keeps
+// its place after them.
+export function orderSections(names) {
+  const want = S.cur?.sectionOrder || [];
+  const rank = (n) => { const i = want.indexOf(n); return i === -1 ? want.length + names.indexOf(n) : i; };
+  return [...names].sort((a, b) => rank(a) - rank(b));
 }
 export function syncNote() {
   if (S.saving) return '<span class="sync busy">Saving…</span>';
@@ -120,15 +152,16 @@ export function together(ui) {
   const vis = visible(all, ui);
   const groupOf = (e) => e.tier === 'B?' ? 'test' : e.energy || 'light';
   const count = (g) => vis.filter(e => g === 'all' || groupOf(e) === g).length;
+  const gone = watchedOf(all, ui).filter(e => ui.night === 'all' || groupOf(e) === ui.night);
 
   const rowsFor = (g, sub, collapsible) => {
     const list = sortEntries(vis.filter(e => groupOf(e) === g), ui);
     if (!list.length) return '';
-    const sections = [...new Set(list.map(e => e.section))];
-    if (!sub || ui.sort !== 'curated' || sections.length < 2 || g === 'test')
+    const sections = orderSections([...new Set(list.map(e => e.section))]);
+    if (!sub || ui.sort !== 'curated' || sections.length < 2)
       return `<div class="rows">${list.map(e => row(e.t, { entry: e })).join('')}</div>`;
     return sections.map(sec => {
-      const label = esc(/^(Light nights|Dense nights|Heavy tokens)$/.test(sec) ? 'General picks' : sec);
+      const label = esc(/^(Light nights|Dense nights|Heavy tokens|Test together)$/.test(sec) ? 'Other picks' : sec);
       const rows = list.filter(e => e.section === sec);
       const inner = `<div class="rows">${rows.map(e => row(e.t, { entry: e })).join('')}</div>`;
       // inside a collapsed group these would be collapsibles within a collapsible, so keep them plain
@@ -156,7 +189,8 @@ export function together(ui) {
       ${NIGHTS.map(([v, l]) => `<button type="button" role="tab" aria-selected="${ui.night === v}" data-act="night" data-v="${v}" data-energy="${v === 'all' ? '' : v}"><span>${l}</span><span class="n-count">${count(v)}</span></button>`).join('')}
     </div>
     ${filters(ui, ['kind'])}
-    ${body || empty(ui.showSeen ? 'Nothing here yet.' : 'Everything on this shelf is watched. Turn on “Show watched” to see it.')}`;
+    ${body || empty(gone.length ? 'Everything here is watched. It’s all in Watched below.' : 'Nothing here yet.')}
+    ${watchedShelf(ui, 'together:' + ui.night, gone)}`;
 }
 
 // A dice button in a list's header: rolls from that list.
@@ -166,14 +200,15 @@ const rollButton = (aud) => `<button class="roll-mini" type="button" data-act="r
 export function solo(ui) {
   const all = S.cur.entries.filter(e => onShelf(e) && e.tier === 'M');
   const vis = visible(all, ui);
-  const order = []; for (const e of all) if (!order.includes(e.section)) order.push(e.section);
+  const order = orderSections([...new Set(all.map(e => e.section))]);
   const body = order.map(s => {
     const list = sortEntries(vis.filter(e => e.section === s), ui);
     if (!list.length) return '';
     return shelf(ui, 'solo:' + s, `${esc(s)} <span class="count">${list.length}</span>`,
       `<div class="rows">${list.map(e => row(e.t, { entry: e, pitch: false })).join('')}</div>`, order.indexOf(s) === 0);
   }).join('');
-  return `<header class="view-head"><h1>Solo</h1>${rollButton('solo')}${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}`;
+  return `<header class="view-head"><h1>Solo</h1>${rollButton('solo')}${syncNote()}</header>${filters(ui, ['kind'])}${body || empty('Nothing left on your solo shelves.')}
+    ${watchedShelf(ui, 'solo', watchedOf(all, ui), { pitch: false })}`;
 }
 // A played pick comes back after six months so it can go on the screens again.
 export const PLAY_RESET_DAYS = 183;
@@ -218,10 +253,12 @@ export function store(ui) {
 }
 
 export function tristan(ui) {
-  const vis = sortEntries(visible(S.cur.entries.filter(e => onShelf(e) && e.tier === 'T'), ui), ui);
+  const all = S.cur.entries.filter(e => onShelf(e) && e.tier === 'T');
+  const vis = sortEntries(visible(all, ui), ui);
   return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Tristan’s queue</h1>${syncNote()}</header>
     <p class="lede">For when you’re travelling: universe-loyalty picks and Moffat. Things he’ll enjoy and you won’t.</p>
-    ${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('') || empty('His queue is empty.')}</div>`;
+    ${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('') || empty('His queue is empty.')}</div>
+    ${watchedShelf(ui, 'tristan', watchedOf(all, ui))}`;
 }
 
 // ---------------------------------------------------------------- Film school
@@ -232,7 +269,8 @@ export function school(ui, vols) {
     ${shelf(ui, 'school:volumes', 'Volumes', `<div class="vols">${vols.map(v => `<a class="vol" href="#/school/${v.n}"><span class="vol-n">Vol. ${v.n}</span><span class="vol-t">${esc(v.title)}</span><span class="vol-p">${v.seen} of ${v.films.length} watched</span></a>`).join('') || '<p class="hint">No volumes yet.</p>'}</div>
     <p class="hint">New volumes appear here when their notes are added to the data repo.</p>`)}
     ${shelf(ui, 'school:syllabus', `On the syllabus <span class="count">${vis.length}</span>`,
-      `<p class="hint">Not yet in a volume.</p>${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('')}</div>`)}`;
+      `<p class="hint">Not yet in a volume.</p>${filters(ui, [])}<div class="rows">${vis.map(e => row(e.t, { entry: e })).join('')}</div>`)}
+    ${watchedShelf(ui, 'school', watchedOf(queue, ui))}`;
 }
 export function volume(n, text) {
   if (!text) return `<header class="view-head"><a class="back" href="#/school">Film school</a><h1>Volume ${esc(n)}</h1></header>${empty('This volume isn’t in the data repo yet.')}`;
@@ -457,13 +495,16 @@ export function incoming(ui) {
 // Films the pass could not find on any service. Grouped by whether We Luv Video stocks them.
 function rentRow(e, i) {
   const t = title(e.t); if (!t) return '';
-  const at = e.wlv === 'yes';
-  const href = wlvUrl(wlvOf(e.t)?.items?.[0]?.slug || e.wlvSlug);
-  // The note is the stock line, which the footer already shows.
+  // Stock comes from the monthly catalogue check when there is one; the entry's own
+  // flag is the fallback. Copies on the shelf are left to the store page.
+  const w = wlvOf(e.t), item = w?.items?.find(x => wlvUrl(x.slug));
+  const stocked = w ? !!item && item.total !== 0 : e.wlv === 'yes';
+  const href = wlvUrl(item?.slug || e.wlvSlug);
+  const line = e.rented ? `Rented ${esc(e.rented)}` : stocked ? `Stocks it${item && formatsOf(item) ? ` (${esc(formatsOf(item))})` : ''}` : 'Not in the catalogue';
   return `<div class="irow${e.rented ? ' is-played' : ''}">
     ${row(e.t, { entry: { ...e, note: undefined }, marks: false })}
     <div class="irow-foot">
-      <span class="suggest">${e.rented ? `Rented ${esc(e.rented)}` : esc(e.note || (at ? 'In stock' : 'Stock not confirmed'))}${e.shelf ? ` \u00b7 ${esc(e.shelf)}` : ''}${href ? ` <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open in the store</a>` : ''}</span>
+      <span class="suggest">${line}${stocked && href ? ` <a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open in the store</a>` : ''}</span>
       <span class="irow-acts">
         <button class="btn small${e.rented ? ' ghost' : ''}" data-act="${e.rented ? 'unrent' : 'rent'}" data-t="${esc(e.t)}" data-i="${i}">${e.rented ? 'Put back' : 'Rented'}</button>
         <button class="btn small ghost" data-act="drop-rent" data-t="${esc(e.t)}" data-i="${i}">Remove</button>
@@ -471,6 +512,8 @@ function rentRow(e, i) {
     </div>
   </div>`;
 }
+// Stocked by We Luv Video, by the monthly check when there is one.
+const rentStocked = (e) => (wlvOf(e.t) ? atWlv(e.t) : e.wlv === 'yes');
 export function rent(ui) {
   const all = S.cur.entries.map((e, i) => ({ e, i })).filter(x => x.e.tier === 'R');
   const kindOk = (x) => ui.kind === 'all' || !ui.kind || (title(x.e.t)?.kind || 'film') === ui.kind;
@@ -478,14 +521,14 @@ export function rent(ui) {
   const done = all.filter(x => x.e.rented);
   const head = `<header class="view-head"><a class="back" href="#/more">More</a><h1>Rent</h1>${syncNote()}</header>`;
   if (!all.length) return head + empty('Nothing to rent. Anything you want that isn\u2019t streaming anywhere lands here, with a note on whether We Luv Video has a copy.');
-  const stocked = live.filter(x => x.e.wlv === 'yes'), maybe = live.filter(x => x.e.wlv !== 'yes');
+  const stocked = live.filter(x => rentStocked(x.e)), maybe = live.filter(x => !rentStocked(x.e));
   const block = (key, t2, list, hint) => list.length ? shelf(ui, 'rent:' + key, `${t2} <span class="count">${list.length}</span>`,
     `${hint ? `<p class="hint">${hint}</p>` : ''}<div class="rows">${list.map(x => rentRow(x.e, x.i)).join('')}</div>`) : '';
   return `${head}
     <p class="lede">Not streaming anywhere you subscribe to. Take the list on your next shift.</p>
     ${filters(ui, ['kind'])}
-    ${block('wlv', 'At We Luv Video', stocked, 'Confirmed in the catalogue.')}
-    ${block('else', 'Nowhere found yet', maybe, 'Not in the We Luv Video catalogue either \u2014 worth asking, or waiting for a re-check.')}
+    ${block('wlv', 'At We Luv Video', stocked, 'In their catalogue. Open the store page to see if a copy is in today.')}
+    ${block('else', 'Nowhere found yet', maybe, 'Not in the We Luv Video catalogue either \u2014 worth asking, or waiting for next month\u2019s check.')}
     ${done.length ? shelf(ui, 'rent:done', `Rented <span class="count">${done.length}</span>`,
       `<div class="rows">${done.map(x => rentRow(x.e, x.i)).join('')}</div>`, false, 'group shelf played') : ''}`;
 }
@@ -550,7 +593,7 @@ export function entryForm(id, i) {
     <h2>${i === undefined ? 'Add to a list' : 'Edit list placement'}</h2>
     <label>List<select name="tier">${opt([['B', 'Together'], ['B?', 'Test together'], ['M', 'Solo'], ['T', 'Tristan’s queue'], ['W', 'Store picks']], e.tier)}</select></label>
     <label>Energy<select name="energy">${opt([['', 'Not set'], ['light', 'Light night'], ['dense', 'Dense night'], ['heavy', 'Heavy token']], e.energy)}</select></label>
-    <label>Shelf<input name="section" list="sections" value="${esc(e.section)}" placeholder="e.g. Dense nights"></label>${sectionList()}
+    <label>Shelf<input name="section" list="sections" value="${esc(e.section)}" placeholder="e.g. Comedies"></label>${sectionList()}
     <label>Status<select name="status">${opt(Object.entries(STATUS), e.status || 'queued')}</select></label>
     <label>Note<input name="note" value="${esc(e.note || '')}" placeholder="Optional"></label>
     <label class="check"><input type="checkbox" name="star"${e.star ? ' checked' : ''}> Highest-confidence pick (★)</label>
@@ -607,7 +650,7 @@ export function addForm() {
       <fieldset class="seg"><legend>Kind</legend><label><input type="radio" name="kind" value="film" checked><span>Film</span></label><label><input type="radio" name="kind" value="series"><span>Series</span></label><label><input type="radio" name="kind" value=""><span>Not sure</span></label></fieldset>
       <label>List<select name="tier">${opt([['B', 'Together'], ['B?', 'Test together'], ['M', 'Solo'], ['T', 'Tristan’s queue'], ['W', 'Store picks']], 'B')}</select></label>
       <label>Energy<select name="energy">${opt([['', 'Not set'], ['light', 'Light night'], ['dense', 'Dense night'], ['heavy', 'Heavy token']], 'dense')}</select></label>
-      <label>Shelf<input name="section" list="sections" placeholder="e.g. Dense nights"></label>${sectionList()}
+      <label>Shelf<input name="section" list="sections" placeholder="e.g. Comedies"></label>${sectionList()}
       <label>Pitch for Tristan<textarea name="pitch" rows="3" placeholder="Optional"></textarea></label>
       <div class="actions"><button class="btn">Add</button></div>
       <p class="hint">The poster, credits and links are looked up on TMDB within a few minutes.</p>

@@ -7,7 +7,7 @@ import { tumble, rattle } from './dice.js';
 import { setRadarrBase } from './avail.js';
 import { frontMatter, esc } from './md.js';
 
-const BUILD = '2026-11-12.2';
+const BUILD = '2026-11-12.3';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -157,8 +157,9 @@ async function save(mutate, message, done) {
   try { await saveCuration(mutate, message); toast(done || 'Saved'); } catch (e) { toast(e.message || 'Couldn’t save', true); }
 }
 const name = (id) => title(id)?.title || id;
-const SECTION_FOR = (d) => d.tier === 'R' ? 'To rent' : d.tier === 'C' ? 'Coming soon' : d.tier === 'B?' ? 'Test together' : d.tier === 'T' ? 'Tristan’s holiday queue' : d.tier === 'W' ? 'In-store play'
-  : d.tier === 'M' ? 'Priority queue' : ({ light: 'Light nights', dense: 'Dense nights', heavy: 'Heavy tokens' }[d.energy] || 'Dense nights');
+// The shelf a new entry lands on when none is typed. Together picks get a
+// holding shelf that sorts last, so they're easy to spot and move.
+const SECTION_FOR = (d) => ({ R: 'To rent', C: 'Coming soon', T: 'Tristan’s holiday queue', W: 'In-store play', M: 'Priority queue' }[d.tier] || 'New picks');
 const entryRef = (cur, id, i) => cur.entries.filter(e => e.t === id)[i];
 
 // ---------------------------------------------------------------- clicks

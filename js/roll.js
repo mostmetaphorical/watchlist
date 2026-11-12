@@ -69,7 +69,7 @@ function blurb(c) {
   const said = (['B', 'B?', 'T'].includes(c.tier) && pitchOf(t.id)) || c.note || t.overview || t.syn || '';
   // List, night, and shelf, skipping a shelf name that only repeats the other two.
   const said2 = [TIER[c.tier], c.energy && ENERGY[c.energy]?.toLowerCase()].filter(Boolean);
-  const generic = /^(light nights|dense nights|heavy tokens|to rent|priority queue)$/i.test(c.section || '') ||
+  const generic = /^(light nights|dense nights|heavy tokens|test together|new picks|to rent|priority queue)$/i.test(c.section || '') ||
     said2.some(x => x.toLowerCase() === String(c.section || '').toLowerCase());
   const where = [...said2, c.section && !generic ? c.section : ''].filter(Boolean).join(' · ');
   return `<article class="roll-card">

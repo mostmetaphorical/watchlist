@@ -257,7 +257,9 @@ textarea { resize: vertical; line-height: 1.45; }
 [data-layout=posters] .rows.store { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 [data-layout=posters] .srow { display: block; }
 [data-layout=posters] .srow .tick { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; z-index: 1; }
-.group.played > h2 { color: var(--soft); }
+.group.played > h2, .group.watched > summary h2 { color: var(--soft); }
+.group.watched { margin-top: 28px; }
+.mark.verdict { color: var(--ink); }
 
 /* collapsible sections */
 .shelf > summary { list-style: none; }
