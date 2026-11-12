@@ -4,7 +4,7 @@ import { S, onChange, load, saveCuration, title, entriesOf, verdictsOf, seen, ge
 import * as UI from './ui.js';
 import { frontMatter } from './md.js';
 
-const BUILD = '2026-11-11.19';
+const BUILD = '2026-11-12.1';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -179,9 +179,13 @@ document.addEventListener('click', async (ev) => {
       `${on ? 'Rented' : 'Back on the rent list'}: ${name(t)}`, on ? 'Marked rented' : 'Back on the list');
   }
   else if (a === 'drop-rent') {
-    const t = el.dataset.t, i = Number(el.dataset.i);
-    save(cur => { const e = cur.entries[i]; if (e && e.t === t && e.tier === 'R') cur.entries = cur.entries.filter(x => x !== e); },
-      `Remove from rent list: ${name(t)}`, 'Removed');
+    const t = el.dataset.t, i = Number(el.dataset.i), tm = title(t)?.tmdb;
+    save(cur => {
+      const e = cur.entries[i]; if (!e || e.t !== t || e.tier !== 'R') return;
+      cur.entries = cur.entries.filter(x => x !== e);
+      // The weekly Radarr job would otherwise re-add it while Radarr still wants it.
+      if (!(cur.declined ||= []).some(d => d.t === t)) cur.declined.push({ t, title: name(t), ...(tm ? { tmdb: tm } : {}), date: today(), from: 'rent' });
+    }, `Remove from rent list: ${name(t)}`, 'Removed. It won\u2019t come back.');
   }
   else if (a === 'retry-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'retry'; }, `Search TMDB again: ${name(id)} [enrich]`, 'Searching again. Check back in a few minutes.');
   else if (a === 'no-match') save(cur => { (cur.matchOverrides ||= {})[id] = 'none'; }, `Mark as not on TMDB: ${name(id)} [enrich]`, 'Saved');
@@ -248,8 +252,11 @@ document.addEventListener('submit', async (ev) => {
   }
   else if (kind === 'remove-title') {
     const gone = name(id);
+    const tm = title(id)?.tmdb;
     await save(cur => {
       cur.entries = cur.entries.filter(e => e.t !== id);
+      // Removing a film everywhere should stop the automated passes resurfacing it too.
+      if (!(cur.declined ||= []).some(x => x.t === id)) cur.declined.push({ t: id, title: gone, ...(tm ? { tmdb: tm } : {}), date: today(), from: 'removed' });
       delete cur.pitches[id];
       if (d.verdicts) cur.verdicts = cur.verdicts.filter(v => v.t !== id);
     }, `Remove ${gone} from the lists`, `${gone} removed`);
