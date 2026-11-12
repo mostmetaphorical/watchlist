@@ -385,7 +385,7 @@ export function titlePage(id, ui, note) {
       ${es.length ? `<ul class="placements">${es.map((e, i) => `<li><button class="placement" data-act="edit-entry" data-id="${esc(t.id)}" data-i="${i}" data-energy="${esc(e.energy || (e.tier === 'B?' ? 'test' : ''))}">
           <strong>${esc(TIER[e.tier] || 'Unsorted')}${e.energy ? ', ' + esc(ENERGY[e.energy].toLowerCase()) : ''}</strong>
           <span>${esc(e.section)}${e.status && e.status !== 'queued' ? ' — ' + esc(STATUS[e.status].toLowerCase()) : ''}${e.star ? ' — ★' : ''}</span>
-          ${e.note ? `<em>${esc(e.note)}</em>` : ''}</button></li>`).join('')}</ul>` : '<p class="hint">Not on any list yet.</p>'}
+          ${e.note && e.tier !== 'R' ? `<em>${esc(e.note)}</em>` : ''}</button></li>`).join('')}</ul>` : '<p class="hint">Not on any list yet.</p>'}
       <button class="btn ghost small" data-act="add-entry" data-id="${esc(t.id)}">Add to a list</button>
     </section>
     <section class="block school"><h2>Film school</h2>${schoolHtml}</section>
