@@ -7,7 +7,7 @@ import { tumble, rattle } from './dice.js';
 import { setRadarrBase } from './avail.js';
 import { frontMatter, esc } from './md.js';
 
-const BUILD = '2026-11-12.4';
+const BUILD = '2026-11-12.5';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 

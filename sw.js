@@ -1,6 +1,6 @@
 // Caches the app itself so it opens offline. Your data is cached separately (in the app) and never by this file.
-const CACHE = 'film-school-shell-v23';
-const SHELL = ['./', 'index.html', 'config.js', 'css/app.css', 'js/main.js', 'js/store.js', 'js/gh.js', 'js/ui.js', 'js/parts.js', 'js/lists.js', 'js/titlepage.js', 'js/more.js', 'js/forms.js', 'js/md.js', 'js/avail.js', 'js/roll.js', 'js/dice.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
+const CACHE = 'film-school-shell-v24';
+const SHELL = ['./', 'index.html', 'config.js', 'css/app.css', 'js/main.js', 'js/store.js', 'js/gh.js', 'js/ui.js', 'js/parts.js', 'js/lists.js', 'js/titlepage.js', 'js/more.js', 'js/forms.js', 'js/md.js', 'js/avail.js', 'js/roll.js', 'js/dice.js', 'fonts/inter.woff', 'fonts/inter-italic.woff', 'fonts/poppins-500.woff', 'fonts/poppins-800.woff', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {
