@@ -108,7 +108,7 @@ export function store(ui) {
     return list.length ? shelf(ui, 'store:' + sec, heading(sec, list.length), storeRows(list)) : '';
   }).join('');
   const rules = S.cur.storeRules || [];
-  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Store picks</h1>${syncNote()}</header>
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Store picks</h1>${all.some(e => !playedOn(e)) ? rollButton('store') : ''}${syncNote()}</header>
     <p class="lede">What to put on the screens during a We Luv Video shift. Tick one when you play it; it drops to the bottom and comes back in six months.</p>
     ${all.length ? filters(ui, { kind: true }) + body : empty('Nothing here yet. Open any film and choose “Add to a list”, or paste a list into the chat.')}
     ${played.length ? shelf(ui, 'store:played', heading('Played', played.length),
