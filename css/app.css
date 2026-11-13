@@ -137,7 +137,9 @@ p { margin: 0 0 .7em; }
 .tp-id h1 { font-size: 1.7rem; } .orig { color: var(--soft); font-style: italic; margin: 2px 0; } .genres { color: var(--soft); font-size: .88rem; margin: 4px 0; }
 /* Rating badges: an icon and the figure. In lists they open their site; on the title page they're links. */
 .rate { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border-radius: 4px; }
-.rate .ico { width: 1.05em; height: 1.05em; flex: none; } .rate .tomato { fill: var(--bulb); }
+.rate .ico { width: 1.05em; height: 1.05em; flex: none; }
+.rate .tomato { fill: #f5412c; } .rate .leaf { fill: #2fa84f; } .rate .stem { stroke: #2fa84f; }
+.rate .tv { color: #01b4e4; }   /* TMDB's brand blue */
 .rate:hover { color: var(--ink); text-decoration: underline; }
 .rate:focus-visible { outline: 2px solid var(--bulb); outline-offset: 2px; }
 .ratings { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .9rem; margin: 6px 0; }

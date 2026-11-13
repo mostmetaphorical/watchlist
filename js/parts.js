@@ -64,11 +64,11 @@ export const MIN_VOTES = 20;
 const tmdbScore = (r) => (r?.tmdb != null && r.votes >= MIN_VOTES ? r.tmdb : null);
 const count = (n, one, many) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
 
-// A green tomato for Rotten Tomatoes, a television for TMDB.
+// A red tomato for Rotten Tomatoes, a blue television for TMDB (colours in app.css).
 const TOMATO = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle class="tomato" cx="12" cy="13.6" r="8.4"/>'
-  + '<path d="M12 4.1L12.9 6.5L16.4 6.4L13.4 7.7L14.7 10.1L12 8.5L9.3 10.1L10.6 7.7L7.6 6.4L11.1 6.5Z" fill="#0b5d2a"/>'
-  + '<path d="M12 7V3.2" stroke="#0b5d2a" stroke-width="1.8" stroke-linecap="round"/></svg>';
-const TV = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path class="leaf" d="M12 4.1L12.9 6.5L16.4 6.4L13.4 7.7L14.7 10.1L12 8.5L9.3 10.1L10.6 7.7L7.6 6.4L11.1 6.5Z"/>'
+  + '<path class="stem" d="M12 7V3.2" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const TV = '<svg class="ico tv" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
   + '<rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M8 2.8l4 4 4-4"/></svg>';
 
 // Where each badge leads: the Rotten Tomatoes page if known, else a search there for the
