@@ -9,7 +9,9 @@ import { getAuth, readFile, writeFile, GitHubError } from './gh.js';
 // person and search views need, and which together outweigh CORE three to one.
 // Drawing first and filling in after is the difference between a 6 MB wait and
 // a 1.5 MB one on a phone.
-const CORE = { titles: 'data/titles.json', curation: 'data/curation.json', letterboxd: 'data/letterboxd.json' };
+// Ratings sit in CORE because lists can be sorted by them. Like the availability files
+// below, they're optional: until the data repo's Ratings Action has run there are none.
+const CORE = { titles: 'data/titles.json', curation: 'data/curation.json', letterboxd: 'data/letterboxd.json', ratings: 'data/ratings.json' };
 // Radarr, Sonarr and We Luv Video availability are optional: they appear once the data
 // repo's GitHub Actions have run, and the app simply shows less until then.
 const EXTRA = { details: 'data/details.json', people: 'data/people.json', radarr: 'data/radarr.json', sonarr: 'data/sonarr.json', wlv: 'data/wlv.json' };
@@ -26,6 +28,7 @@ export const S = {
   radarr: null,      // data/radarr.json: which films Radarr has (optional file)
   sonarr: null,      // data/sonarr.json: which series Sonarr has (optional file)
   wlv: null,         // data/wlv.json: which titles We Luv Video stocks (optional file)
+  ratings: null,     // data/ratings.json: title id -> TMDB and Rotten Tomatoes ratings (optional file)
   shas: {},          // file name -> git blob sha of the version in memory
   loaded: false,     // the lists can be drawn
   extras: false,     // credits, people and availability have arrived too
@@ -127,6 +130,7 @@ function apply(name, text) {
   else if (name === 'radarr') S.radarr = j;
   else if (name === 'sonarr') S.sonarr = j;
   else if (name === 'wlv') S.wlv = j;
+  else if (name === 'ratings') S.ratings = j.titles || {};
 }
 // details.json is keyed by title id; fold it back onto the records in memory so
 // every reader can keep using t.credits and t.overview.
@@ -145,7 +149,12 @@ export async function load() {
   S.syncing = true; S.error = null; S.errorStatus = null; emit();
   let changed = false;
   const take = async (group) => {
-    const results = await Promise.all(Object.entries(group).map(async ([name, path]) => [name, await readFile(auth, path)]));
+    const results = await Promise.all(Object.entries(group).map(async ([name, path]) => {
+      try { return [name, await readFile(auth, path)]; }
+      // Ratings are optional: if they can't be read (offline before they were ever cached),
+      // the lists still open, just without them.
+      catch (e) { if (name === 'ratings' && e.status !== 401) return [name, null]; throw e; }
+    }));
     for (const [name, f] of results) {
       if (!f) { if (name === 'titles' || name === 'curation') throw new GitHubError(404, `The data repo has no ${FILES[name]}.`); continue; }
       if (f.offline) S.offline = true;

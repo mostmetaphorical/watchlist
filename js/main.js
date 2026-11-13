@@ -13,7 +13,7 @@ import { setServers, forgetServers } from './avail.js';
 import { frontMatter } from './md.js';
 
 // Shown in Settings. Bump it, and CACHE in sw.js, with every release.
-const BUILD = '2026-11-12.10';
+const BUILD = '2026-11-12.11';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 

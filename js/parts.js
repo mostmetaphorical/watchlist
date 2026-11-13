@@ -47,9 +47,30 @@ export function runtime(t) {
   const h = Math.floor(t.runtime / 60), m = t.runtime % 60;
   return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m} min`;
 }
-export function metaLine(t) {
-  return [t.year, runtime(t), t.kind === 'series' ? 'Series' : t.kind === 'standup' ? 'Stand-up' : '']
+// Year, length, kind, and the ratings in short ("RT 86%", "TMDB 7.9") unless asked not to.
+export function metaLine(t, { ratings = true } = {}) {
+  return [t.year, runtime(t), t.kind === 'series' ? 'Series' : t.kind === 'standup' ? 'Stand-up' : '', ...(ratings ? shortRatings(t.id) : [])]
     .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
+}
+
+// ---------------------------------------------------------------- ratings
+// From data/ratings.json: tmdb (out of 10) with votes, rt (Tomatometer %) and audience
+// (Rotten Tomatoes audience %). Any of them may be missing.
+export const ratingOf = (id) => S.ratings?.[id] || null;
+// A TMDB average from a handful of votes says little, so below this it isn't shown in
+// lists or used for sorting (the title page still shows it, with the count).
+export const MIN_VOTES = 20;
+const tmdbScore = (r) => (r?.tmdb != null && r.votes >= MIN_VOTES ? r.tmdb : null);
+function shortRatings(id) {
+  const r = ratingOf(id); if (!r) return [];
+  return [r.rt != null ? `RT ${r.rt}%` : '', tmdbScore(r) != null ? `TMDB ${r.tmdb.toFixed(1)}` : ''];
+}
+// The title page's longer line: "Rotten Tomatoes 86% · audience 89% · TMDB 7.9 from 1,200 votes".
+export function ratingsLine(id) {
+  const r = ratingOf(id); if (!r) return '';
+  const parts = [r.rt != null ? `Rotten Tomatoes ${r.rt}%` : '', r.audience != null ? `audience ${r.audience}%` : '',
+    r.tmdb != null ? `TMDB ${r.tmdb.toFixed(1)} from ${r.votes.toLocaleString('en-GB')} vote${r.votes === 1 ? '' : 's'}` : ''].filter(Boolean);
+  return parts.length ? `<p class="ratings">${parts.map(esc).join(' · ')}</p>` : '';
 }
 // "Written and directed by …". Uses the full credits once they've loaded, and the
 // short line precomputed in titles.json (t.by) until then.
@@ -156,14 +177,22 @@ export const uiSelect = (key, label, pairs, val, showLabel = false) =>
 export function filters(ui, { kind = false } = {}) {
   return `<div class="filters">
     ${kind ? uiSelect('kind', 'Kind', [['all', 'Films & series'], ['film', 'Films'], ['series', 'Series']], ui.kind) : ''}
-    ${uiSelect('sort', 'Sort', [['curated', 'List order'], ['short', 'Shortest first'], ['new', 'Newest first'], ['old', 'Oldest first'], ['az', 'A to Z']], ui.sort)}
+    ${uiSelect('sort', 'Sort', [['curated', 'List order'], ['rt', 'Rotten Tomatoes'], ['tmdb', 'TMDB rating'], ['short', 'Shortest first'], ['new', 'Newest first'], ['old', 'Oldest first'], ['az', 'A to Z']], ui.sort)}
     ${viewToggle()}
   </div>`;
 }
 export function sortEntries(list, ui) {
   const t = (e) => title(e.t) || {};
+  const curated = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || (a.order ?? 0) - (b.order ?? 0);   // starred first, then list order
+  // Highest first; titles without that rating go to the end, in list order.
+  const high = (score) => (a, b) => {
+    const x = score(ratingOf(a.t)), y = score(ratingOf(b.t));
+    return (x == null) - (y == null) || (y ?? 0) - (x ?? 0) || curated(a, b);
+  };
   const by = {
-    curated: (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || (a.order ?? 0) - (b.order ?? 0),   // starred first, then list order
+    curated,
+    rt: high(r => r?.rt ?? null),
+    tmdb: high(tmdbScore),
     short: (a, b) => (t(a).runtime || 999) - (t(b).runtime || 999),
     new: (a, b) => (t(b).year || 0) - (t(a).year || 0),
     old: (a, b) => (t(a).year || 9999) - (t(b).year || 9999),

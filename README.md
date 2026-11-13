@@ -58,6 +58,7 @@ data/people.json       optional  names and photos for the people in credits
 data/radarr.json       optional  which films Radarr has on disk
 data/sonarr.json       optional  which series Sonarr has, and how many episodes are on disk
 data/wlv.json          optional  which titles the video shop stocks
+data/ratings.json      optional  TMDB user ratings and Rotten Tomatoes scores
 notes/<title id>.md    optional  film-school notes, one file per title
 volumes/vol-01.md      optional  film-school volumes, numbered from 01
 ```
@@ -178,6 +179,14 @@ In a credit, `p` is the person's id in `people.json`, `r` the role (`director`, 
 ```
 
 A film or series with a line links to its page: the address entered in Settings plus `/movie/<slug>` (Radarr) or `/series/<slug>` (Sonarr). One without a line isn't in Radarr or Sonarr, and links to the "Add new" page searching for it instead (`/add/new?term=…`: `tmdb:<id>` for Radarr, the title for Sonarr). A Sonarr address left empty in Settings is Radarr's with `radarr` changed to `sonarr`. The app never connects to either; the addresses only make the links. `episodes` is how many episodes Sonarr expects and `files` how many are on disk; a series with any counts as on disk for the dice. Shop links are the shop's address plus the item's `slug`; an item with `total: 0` counts as not stocked. To use a different shop, change `WLV_STORE` in `js/avail.js` and the shop's name in the labels.
+
+### data/ratings.json
+
+```json
+{ "updated": "2026-11-13", "titles": { "the-thing-1982": { "tmdb": 8.1, "votes": 7200, "rt": 84, "audience": 92 } } }
+```
+
+`tmdb` is the TMDB user rating out of 10 and `votes` how many people gave it; `rt` is the Rotten Tomatoes Tomatometer and `audience` its audience score, both percentages. Any of them can be missing. Lists show the Tomatometer and the TMDB rating next to the year, and can be sorted by either; a TMDB rating from fewer than 20 votes (`MIN_VOTES` in `js/parts.js`) is left out of both and only shown, with its count, on the title page. The file is loaded with the lists, so sorting by rating works on first draw. In the author's setup a nightly GitHub Action in the data repo writes it, from TMDB and, for Rotten Tomatoes, from MDBList (Rotten Tomatoes has no public API); the file may carry other fields, such as when each title was last checked, which the app ignores.
 
 ### notes and volumes
 
