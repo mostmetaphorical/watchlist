@@ -241,7 +241,7 @@ How to use the diary…
 | `js/dice.js` | The dice faces, the tumble, and the sound (made with Web Audio, no sound files) |
 | `js/md.js` | HTML escaping and a small markdown reader for notes |
 | `sw.js` | The service worker that keeps the app's own files for offline use |
-| `manifest.webmanifest`, `icons/` | What the phone uses when the app is added to the home screen |
+| `manifest.webmanifest`, `icons/` | What the phone uses when the app is added to the home screen. The icon is the loading screen's film leader (black, white ring, green quarter, Poppins "8"), drawn as outlines so it needs no font |
 | `fonts/` | Inter and Poppins, bundled so no font service is contacted |
 
 Every page is built as a string of HTML by a function that takes the data and returns markup; `main.js` puts it on the page. Buttons carry `data-act="…"` and forms `data-form="…"`, and `main.js` has one table of handlers for each, so there are no inline scripts anywhere (the security policy wouldn't run them anyway). Anything that comes from the data passes through `esc()` before it reaches the page.
