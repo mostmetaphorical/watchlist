@@ -50,7 +50,7 @@ export function md(text) {
 // Returns [{label, body}] in order; text before the first label goes under "".
 export function noteSections(body) {
   const parts = []; let cur = { label: '', body: [] };
-  for (const para of String(body || '').split(/\n{2,}/)) {
+  for (const para of String(body || '').trim().split(/\n{2,}/)) {   // trim: the body starts with the newline after the front matter
     const m = para.match(/^\*\*([^*]{2,40}?)\.?\*\*\s*([\s\S]*)$/);
     if (m && !/\n/.test(m[1])) { if (cur.label || cur.body.length) parts.push(cur); cur = { label: m[1].replace(/\.$/, ''), body: [m[2]] }; }
     else cur.body.push(para);
