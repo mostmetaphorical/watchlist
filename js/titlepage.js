@@ -4,7 +4,7 @@
 import { S, IX, title, entriesOf, verdictsOf, lbOf, diaryOf, pitchOf, seen, open, tmdbRef } from './store.js';
 import { esc, md, frontMatter, noteSections, splitQuestions } from './md.js';
 import { availBlock } from './avail.js';
-import { IMG, ENERGY, TIER, REACTION, VIEWER, STATUS, ROLE, ROLE_RANK, viewToggle, poster, metaLine, ratingsLine, stars, row, shelf, heading, empty } from './parts.js';
+import { IMG, ENERGY, TIER, REACTION, VIEWER, STATUS, ROLE, ROLE_RANK, viewToggle, poster, metaLine, ratingBadges, stars, row, shelf, heading, empty } from './parts.js';
 
 const out = (href, label) => `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
 const inline = (html) => html.replace(/^<p>|<\/p>$/g, '');   // drop the paragraph md() wraps around one line
@@ -167,7 +167,7 @@ export function titlePage(id, ui, note) {
           <h1>${esc(t.title)}</h1>
           ${t.original && t.original !== t.title ? `<p class="orig">${esc(t.original)}</p>` : ''}
           <p class="row-meta">${metaLine(t, { ratings: false })}</p>
-          ${ratingsLine(t.id)}
+          ${ratingBadges(t, { full: true })}
           ${t.genres?.length ? `<p class="genres">${esc(t.genres.join(', '))}</p>` : ''}
           ${externalLinks(t)}
         </div>

@@ -13,7 +13,7 @@ import { setServers, forgetServers } from './avail.js';
 import { frontMatter } from './md.js';
 
 // Shown in Settings. Bump it, and CACHE in sw.js, with every release.
-const BUILD = '2026-11-12.11';
+const BUILD = '2026-11-13.1';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -308,7 +308,16 @@ function atEntry(el, change, message, done) {
   save(cur => { const e = cur.entries[i]; if (e && e.t === t) change(cur, e); }, message, done);
 }
 
+// A rating badge inside a row (data-href) opens its site in a new tab instead of the row.
+function openBadge(ev) {
+  const b = ev.target.closest?.('[data-href]'); if (!b) return false;
+  ev.preventDefault(); ev.stopPropagation();
+  window.open(b.dataset.href, '_blank', 'noopener,noreferrer');
+  return true;
+}
+document.addEventListener('keydown', (ev) => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches?.('[data-href]')) openBadge(ev); });
 document.addEventListener('click', async (ev) => {
+  if (openBadge(ev)) return;
   const el = ev.target.closest('[data-act]'); if (!el) return;
   const fn = own(ACTIONS, el.dataset.act); if (!fn) return;
   if (el.tagName === 'A') ev.preventDefault();

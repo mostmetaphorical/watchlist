@@ -183,10 +183,12 @@ A film or series with a line links to its page: the address entered in Settings 
 ### data/ratings.json
 
 ```json
-{ "updated": "2026-11-13", "titles": { "the-thing-1982": { "tmdb": 8.1, "votes": 7200, "rt": 84, "audience": 92 } } }
+{ "updated": "2026-11-13", "titles": { "the-thing-1982": { "tmdb": 8.1, "votes": 7200, "rt": 84, "rtVotes": 75, "audience": 92, "audienceVotes": 250000 } } }
 ```
 
-`tmdb` is the TMDB user rating out of 10 and `votes` how many people gave it; `rt` is the Rotten Tomatoes Tomatometer and `audience` its audience score, both percentages. Any of them can be missing. Lists show the Tomatometer and the TMDB rating next to the year, and can be sorted by either; a TMDB rating from fewer than 20 votes (`MIN_VOTES` in `js/parts.js`) is left out of both and only shown, with its count, on the title page. The file is loaded with the lists, so sorting by rating works on first draw. In the author's setup a nightly GitHub Action in the data repo writes it, from TMDB and, for Rotten Tomatoes, from MDBList (Rotten Tomatoes has no public API); the file may carry other fields, such as when each title was last checked, which the app ignores.
+`tmdb` is the TMDB user rating out of 10 and `votes` how many people gave it; `rt` is the Rotten Tomatoes Tomatometer and `rtVotes` how many critics' reviews it counts; `audience` is the Rotten Tomatoes audience score and `audienceVotes` how many ratings that rests on; `rtUrl`, if present, is the title's Rotten Tomatoes page. Any of them can be missing.
+
+Lists show a green tomato with the Tomatometer and a television with the TMDB rating; hovering gives the counts, and clicking opens Rotten Tomatoes (its page, or a search for the title) or the TMDB page in a new tab. Rows are themselves links, so in lists the badges carry `data-href` and `js/main.js` opens it instead of the row; on the title page they're ordinary links with the counts written out, since phones can't hover. Lists can be sorted by either rating. A TMDB rating from fewer than 20 votes (`MIN_VOTES` in `js/parts.js`) isn't shown in lists or used for sorting, only on the title page with its count. The file is loaded with the lists, so sorting by rating works on first draw. In the author's setup a nightly GitHub Action in the data repo writes it, from TMDB and, for Rotten Tomatoes, from MDBList (Rotten Tomatoes has no public API); the file may carry other fields, such as when each title was last checked, which the app ignores.
 
 ### notes and volumes
 

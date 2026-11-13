@@ -47,30 +47,57 @@ export function runtime(t) {
   const h = Math.floor(t.runtime / 60), m = t.runtime % 60;
   return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m} min`;
 }
-// Year, length, kind, and the ratings in short ("RT 86%", "TMDB 7.9") unless asked not to.
+// Year, length, kind, then the rating badges (left out on the title page, which has its own).
 export function metaLine(t, { ratings = true } = {}) {
-  return [t.year, runtime(t), t.kind === 'series' ? 'Series' : t.kind === 'standup' ? 'Stand-up' : '', ...(ratings ? shortRatings(t.id) : [])]
-    .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('');
+  return [t.year, runtime(t), t.kind === 'series' ? 'Series' : t.kind === 'standup' ? 'Stand-up' : '']
+    .filter(Boolean).map(x => `<span>${esc(x)}</span>`).join('') + (ratings ? ratingBadges(t) : '');
 }
 
 // ---------------------------------------------------------------- ratings
-// From data/ratings.json: tmdb (out of 10) with votes, rt (Tomatometer %) and audience
-// (Rotten Tomatoes audience %). Any of them may be missing.
+// From data/ratings.json: tmdb (out of 10) and votes; rt (Tomatometer %) and rtVotes
+// (critics' reviews); audience (Rotten Tomatoes audience %) and audienceVotes; rtUrl, the
+// title's Rotten Tomatoes page when known. Any of them may be missing.
 export const ratingOf = (id) => S.ratings?.[id] || null;
 // A TMDB average from a handful of votes says little, so below this it isn't shown in
 // lists or used for sorting (the title page still shows it, with the count).
 export const MIN_VOTES = 20;
 const tmdbScore = (r) => (r?.tmdb != null && r.votes >= MIN_VOTES ? r.tmdb : null);
-function shortRatings(id) {
-  const r = ratingOf(id); if (!r) return [];
-  return [r.rt != null ? `RT ${r.rt}%` : '', tmdbScore(r) != null ? `TMDB ${r.tmdb.toFixed(1)}` : ''];
+const count = (n, one, many) => `${n.toLocaleString('en-GB')} ${n === 1 ? one : many}`;
+
+// A green tomato for Rotten Tomatoes, a television for TMDB.
+const TOMATO = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle class="tomato" cx="12" cy="13.6" r="8.4"/>'
+  + '<path d="M12 4.1L12.9 6.5L16.4 6.4L13.4 7.7L14.7 10.1L12 8.5L9.3 10.1L10.6 7.7L7.6 6.4L11.1 6.5Z" fill="#0b5d2a"/>'
+  + '<path d="M12 7V3.2" stroke="#0b5d2a" stroke-width="1.8" stroke-linecap="round"/></svg>';
+const TV = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+  + '<rect x="2.5" y="7" width="19" height="13" rx="2.5"/><path d="M8 2.8l4 4 4-4"/></svg>';
+
+// Where each badge leads: the Rotten Tomatoes page if known, else a search there for the
+// title; the TMDB page.
+const rtLink = (t, r) => r.rtUrl || `https://www.rottentomatoes.com/search?search=${encodeURIComponent(t.title)}`;
+const tmdbLink = (t) => (t.tmdb?.id ? `https://www.themoviedb.org/${t.tmdb.type === 'tv' ? 'tv' : 'movie'}/${t.tmdb.id}`
+  : `https://www.themoviedb.org/search?query=${encodeURIComponent(t.title)}`);
+// The hover text: what each figure is and how many people it rests on.
+function rtTip(r) {
+  const crit = `Rotten Tomatoes: ${r.rt}% of ${r.rtVotes ? count(r.rtVotes, 'critic', 'critics') : 'critics'} liked it`;
+  const aud = r.audience != null ? `; audience score ${r.audience}%${r.audienceVotes ? ` from ${count(r.audienceVotes, 'rating', 'ratings')}` : ''}` : '';
+  return crit + aud;
 }
-// The title page's longer line: "Rotten Tomatoes 86% · audience 89% · TMDB 7.9 from 1,200 votes".
-export function ratingsLine(id) {
-  const r = ratingOf(id); if (!r) return '';
-  const parts = [r.rt != null ? `Rotten Tomatoes ${r.rt}%` : '', r.audience != null ? `audience ${r.audience}%` : '',
-    r.tmdb != null ? `TMDB ${r.tmdb.toFixed(1)} from ${r.votes.toLocaleString('en-GB')} vote${r.votes === 1 ? '' : 's'}` : ''].filter(Boolean);
-  return parts.length ? `<p class="ratings">${parts.map(esc).join(' · ')}</p>` : '';
+const tmdbTip = (r) => `TMDB users: ${r.tmdb.toFixed(1)} out of 10 from ${count(r.votes, 'vote', 'votes')}`;
+
+// The badges. In lists they sit inside a row that is itself a link, so they can't be links
+// too: they carry data-href and main.js opens it (in a new tab) instead of the row. On the
+// title page (full) they're real links and spell the counts out, since phones can't hover.
+export function ratingBadges(t, { full = false } = {}) {
+  const r = ratingOf(t.id); if (!r) return '';
+  const badge = (href, tip, icon, text) => full
+    ? `<a class="rate" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(tip)}">${icon}<span>${esc(text)}</span></a>`
+    : `<span class="rate" data-href="${esc(href)}" role="link" tabindex="0" title="${esc(tip)}" aria-label="${esc(tip)}">${icon}${esc(text)}</span>`;
+  const out = [];
+  if (r.rt != null) out.push(badge(rtLink(t, r), rtTip(r), TOMATO, full
+    ? `${r.rt}%${r.rtVotes ? ` of ${count(r.rtVotes, 'review', 'reviews')}` : ''}${r.audience != null ? ` · audience ${r.audience}%` : ''}` : `${r.rt}%`));
+  if (full ? r.tmdb != null : tmdbScore(r) != null) out.push(badge(tmdbLink(t), tmdbTip(r), TV, full
+    ? `${r.tmdb.toFixed(1)} · ${count(r.votes, 'vote', 'votes')}` : r.tmdb.toFixed(1)));
+  return full ? (out.length ? `<p class="ratings">${out.join('')}</p>` : '') : out.join('');
 }
 // "Written and directed by …". Uses the full credits once they've loaded, and the
 // short line precomputed in titles.json (t.by) until then.
