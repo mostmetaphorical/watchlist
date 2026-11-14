@@ -13,7 +13,7 @@ import { setServers, forgetServers } from './avail.js';
 import { frontMatter } from './md.js';
 
 // Shown in Settings. Bump it, and CACHE in sw.js, with every release.
-const BUILD = '2026-11-13.2';
+const BUILD = '2026-11-13.3';
 const $ = (s) => document.querySelector(s);
 const view = $('#view'), nav = $('#nav'), sheet = $('#sheet'), sheetBody = $('#sheet-body'), toastEl = $('#toast');
 
@@ -217,7 +217,14 @@ const entryRef = (cur, id, i) => cur.entries.filter(e => e.t === id)[i];
 const nextOrder = (cur) => Math.max(0, ...cur.entries.map(e => e.order || 0)) + 1;
 // The shelf a new entry lands on when none is typed. Together picks get a
 // holding shelf that sorts last, so they're easy to spot and move.
-const defaultShelf = (tier) => ({ R: 'To rent', C: 'Coming soon', T: 'Tristan’s holiday queue', W: 'In-store play', M: 'Priority queue' }[tier] || 'New picks');
+const defaultShelf = (tier) => ({ R: 'To rent', C: 'Coming soon', T: 'Tristan’s holiday queue', W: 'In-store play', M: 'Priority queue', S: UI.SORT_SHELF }[tier] || 'New picks');
+// Leave the list to the next curation run (tier S). note, if any, is passed on as a hint.
+function askSort(t, note) {
+  save(cur => {
+    if (cur.entries.some(e => e.t === t)) return;   // already on a list: nothing to sort
+    cur.entries.push(dropEmpty({ t, tier: 'S', section: UI.SORT_SHELF, status: 'queued', note: note?.trim(), asked: today(), order: nextOrder(cur) }));
+  }, `Ask Claude to sort ${name(t)}`, 'Claude sorts it on the next run');
+}
 // Removing something by hand should stop the automated passes bringing it back,
 // so it's added to curation.json "declined", which they check.
 function deny(cur, t, from) {
@@ -262,6 +269,11 @@ const ACTIONS = {
   'drop-store': (el) => { const t = el.dataset.t; save(cur => { cur.entries = cur.entries.filter(e => !(e.t === t && e.tier === 'W')); }, `Remove from store picks: ${name(t)}`, 'Removed'); },
 
   // Incoming. data-i is the entry's position in curation.json; data-t guards against it having moved.
+  // "Let Claude sort it": from the Add to a list sheet (with its note), a title page or an Unsorted row.
+  'ask-sort': (el, id) => { const f = el.closest('form'); const t = el.dataset.t || id; if (f) closeSheet(); askSort(t, f?.elements.note?.value); },
+  'unask-sort': (el) => atEntry(el, (cur, e) => { if (e.tier === 'S') cur.entries = cur.entries.filter(x => x !== e); }, `Cancel sort request: ${name(el.dataset.t)}`, 'Back in Unsorted'),
+  'drop-unsorted': (el) => { const t = el.dataset.t; save(cur => deny(cur, t, 'unsorted'), `Remove from Unsorted: ${name(t)}`, 'Removed. Its page has a “Put it back” button.'); },
+  'restore-title': (el, id) => save(cur => { cur.declined = (cur.declined || []).filter(d => d.t !== id); }, `Put back: ${name(id)}`, 'Put back'),
   'keep-auto': (el) => atEntry(el, (cur, e) => { delete e.auto; delete e.found; }, `Keep ${name(el.dataset.t)}`, 'Kept'),
   'bin-auto': (el) => atEntry(el, (cur, e) => { cur.entries = cur.entries.filter(x => x !== e); deny(cur, e.t); }, `Bin ${name(el.dataset.t)}`, 'Binned. It won’t come back.'),
 
@@ -366,7 +378,9 @@ const FORMS = {
   // Add to a list, or edit a placement (data-i is which of the title's entries).
   entry(f, d, id) {
     const i = f.dataset.i === '' ? null : Number(f.dataset.i);
-    const vals = dropEmpty({ tier: d.tier, energy: d.energy, section: d.section.trim() || defaultShelf(d.tier), status: d.status, note: d.note.trim(), star: !!d.star });
+    // Moving off "For Claude to sort" by hand drops that holding shelf; choosing it drops the energy.
+    const typed = d.section.trim(), keepShelf = typed && !(d.tier !== 'S' && typed === UI.SORT_SHELF);
+    const vals = dropEmpty({ tier: d.tier, energy: d.tier === 'S' ? '' : d.energy, section: keepShelf ? typed : defaultShelf(d.tier), status: d.status, note: d.note.trim(), star: !!d.star });
     save(cur => {
       if (i === null) { cur.entries.push({ t: id, ...vals, order: nextOrder(cur) }); return; }
       const e = entryRef(cur, id, i); if (!e) return;
@@ -418,7 +432,7 @@ const FORMS = {
     await save(cur => {
       if ((cur.added ||= []).some(a => a.id === nid)) return;
       cur.added.push(dropEmpty({ id: nid, title: typed, year, kind: d.kind }));
-      cur.entries.push(dropEmpty({ t: nid, tier: d.tier, energy: d.energy, section: d.section.trim() || defaultShelf(d.tier), status: 'queued', order: nextOrder(cur) }));
+      cur.entries.push(dropEmpty({ t: nid, tier: d.tier, energy: d.tier === 'S' ? '' : d.energy, section: d.section.trim() || defaultShelf(d.tier), status: 'queued', ...(d.tier === 'S' ? { asked: today() } : {}), order: nextOrder(cur) }));
       if (d.pitch.trim()) cur.pitches[nid] = d.pitch.trim();
     }, `Add ${typed} [enrich]`, 'Added');
     location.hash = '#/t/' + encodeURIComponent(nid);

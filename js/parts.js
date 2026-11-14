@@ -8,7 +8,10 @@ import { availMarks } from './avail.js';
 
 // ---------------------------------------------------------------- labels
 export const IMG = 'https://image.tmdb.org/t/p/';   // TMDB poster and photo base URL
-export const TIER = { B: 'Together', 'B?': 'Test together', M: 'Solo', T: 'Tristan’s queue', W: 'Store picks', C: 'Coming soon', R: 'Rent' };
+// S: the user picked the title and left the list to the next curation run, which
+// replaces it with a real tier and writes the pitch and notes (CURATION.md, "Sort requests").
+export const TIER = { B: 'Together', 'B?': 'Test together', M: 'Solo', T: 'Tristan’s queue', W: 'Store picks', C: 'Coming soon', R: 'Rent', S: 'For Claude to sort' };
+export const SORT_SHELF = 'For Claude to sort';
 export const ENERGY = { light: 'Light night', dense: 'Dense night', heavy: 'Heavy token' };
 export const REACTION = { favourite: 'All-time favourite', loved: 'Loved it', liked: 'Liked it', mixed: 'Mixed', bounced: 'Bounced off', disliked: 'Disliked', seen: 'Seen' };
 export const VIEWER = { both: 'Together', tristan: 'Tristan', meta: 'You' };

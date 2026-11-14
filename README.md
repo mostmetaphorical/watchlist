@@ -121,11 +121,15 @@ An **entry** puts a title on a list; a title can have several. `tier` says which
 | `W` | Store picks | never; it's ticked as played and comes back after six months |
 | `R` | Rent | it's marked rented |
 | `C` | Coming soon | it's moved to a real list once it's out |
+| `S` | For Claude to sort (shown under Unsorted, "Waiting for Claude") | the next curation run gives it a real tier, energy and shelf, and writes the pitch and film-school notes |
 
 - `energy` is `light`, `dense` or `heavy`, and sets the colour and the Together group.
 - `section` is the shelf name. `sectionOrder` lists shelf names in the order to show them; shelves not listed follow in the order they first appear.
 - `status` is `queued`, `ongoing`, `done` or `dropped`. `done` and `dropped` also take an entry off its list; `ongoing` keeps it on regardless of verdicts. Entries that leave a list move to its Watched group.
 - `star: true` marks a highest-confidence pick; `order` is the position within a shelf.
+- `asked` (tier `S` only) is the date the user asked; the entry's `note`, if any, is the user's hint to the run.
+
+**Unsorted** lists what's on the user's Letterboxd watchlist or lists, unwatched, with no entry here. Each row has "Let Claude sort it" (adds a tier `S` entry) and "Remove" (adds the title to `declined`, which the automated passes respect). A removed title's page offers "Put it back", which deletes the `declined` record. Title pages work the same wherever a title comes from: "Add to a list", "Let Claude sort it" while it's on no list, and the remove link at the bottom.
 
 A **verdict** records a reaction after watching. `viewer` is `both`, `meta` or `tristan`; `reaction` is one of `favourite`, `loved`, `liked`, `mixed`, `bounced`, `disliked`, `seen`.
 

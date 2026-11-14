@@ -60,7 +60,7 @@ function rebuild() {
   const secs = new Map();
   for (const e of S.cur?.entries || []) {
     (IX.entries.get(e.t) || IX.entries.set(e.t, []).get(e.t)).push(e);
-    if (!secs.has(e.section)) secs.set(e.section, { name: e.section, tier: e.tier, order: e.order ?? 0 });
+    if (e.tier !== 'S' && !secs.has(e.section)) secs.set(e.section, { name: e.section, tier: e.tier, order: e.order ?? 0 });
   }
   IX.sections = [...secs.values()];
   for (const v of S.cur?.verdicts || []) (IX.verdicts.get(v.t) || IX.verdicts.set(v.t, []).get(v.t)).push(v);
@@ -99,6 +99,13 @@ export function tmdbRef(t) {
 export const AUDIENCE = { B: 'both', 'B?': 'both', M: 'meta', T: 'tristan' };
 
 // Who has seen it, from verdicts + Letterboxd. Watching together counts for both.
+// The record of a title taken off the lists by hand (curation.json "declined"), or undefined.
+export const declinedOf = (id) => (S.cur?.declined || []).find(d => d.t === id);
+// On the user's Letterboxd watchlist (unwatched) or one of their Letterboxd lists.
+export function onLetterboxdLists(id) {
+  const f = S.lb?.films?.[id];
+  return !!((f?.watchlist && !f.watched) || Object.values(S.lb?.lists || {}).some(l => l.items.includes(id)));
+}
 export function seen(id) {
   const vs = verdictsOf(id), l = lbOf(id);
   const together = vs.some(v => v.viewer === 'both');

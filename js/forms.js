@@ -7,7 +7,8 @@ import { SERVER, savedBase, sonarrFromRadarr } from './avail.js';
 import { TIER, ENERGY, REACTION, VIEWER, STATUS, options } from './parts.js';
 
 // The choices shared by "Add to a list" and the Add page.
-const LIST_CHOICES = ['B', 'B?', 'M', 'T', 'W'].map(k => [k, TIER[k]]);
+// "Let Claude decide" (S) leaves the list to the next curation run.
+const LIST_CHOICES = [...['B', 'B?', 'M', 'T', 'W'].map(k => [k, TIER[k]]), ['S', 'Let Claude decide']];
 const ENERGY_CHOICES = [['', 'Not set'], ...Object.entries(ENERGY)];
 // Existing shelf names, offered as suggestions while typing a shelf.
 const sectionList = () => `<datalist id="sections">${IX.sections.map(s => `<option value="${esc(s.name)}">`).join('')}</datalist>`;
@@ -18,6 +19,8 @@ export function entryForm(id, i) {
   const e = i === undefined ? { tier: 'B', energy: 'dense', section: '', status: 'queued' } : entriesOf(id)[i];
   return `<form data-form="entry" data-id="${esc(id)}" data-i="${i ?? ''}">
     <h2>${i === undefined ? 'Add to a list' : 'Edit list placement'}</h2>
+    ${i === undefined ? `<div class="ask-sort"><p class="hint">Not sure which list? Claude picks it on the next curation run (Fridays and Sundays) and writes the pitch and the film-school notes. Anything in Note below is passed on as a hint.</p>
+      <button type="button" class="btn ghost" data-act="ask-sort">Let Claude sort it</button></div>` : ''}
     <label>List<select name="tier">${options(LIST_CHOICES, e.tier)}</select></label>
     <label>Energy<select name="energy">${options(ENERGY_CHOICES, e.energy)}</select></label>
     <label>Shelf<input name="section" list="sections" value="${esc(e.section)}" placeholder="e.g. Comedies"></label>${sectionList()}
@@ -58,12 +61,14 @@ export function noteForm(id, text) {
 export function removeTitleForm(id) {
   const t = title(id), es = entriesOf(id), vs = verdictsOf(id), p = pitchOf(id);
   const lists = [...new Set(es.map(e => TIER[e.tier] || e.section))];
+  const what = es.length ? `This takes it off ${es.length === 1 ? 'the list it is on' : `all ${es.length} lists it is on`} — ${esc(lists.join(', '))}`
+    : 'This takes it off Unsorted';
   return `<form data-form="remove-title" data-id="${esc(id)}">
     <h2>Remove ${esc(t.title)}?</h2>
-    <p>This takes it off ${es.length === 1 ? 'the list it is on' : `all ${es.length} lists it is on`}${es.length ? ` — ${esc(lists.join(', '))}` : ''}${p ? ', and deletes the pitch' : ''}.</p>
+    <p>${what}${p ? ', and deletes the pitch' : ''}. The curation runs won’t suggest it again.</p>
     ${vs.length ? `<label class="check"><input type="checkbox" name="verdicts"> Also delete ${vs.length} verdict${vs.length > 1 ? 's' : ''} (${vs.map(v => esc(VIEWER[v.viewer])).join(', ')})</label>
       <p class="hint">Verdicts are your record of what you watched and what you thought. Leave this unticked to keep them.</p>` : ''}
-    <p class="hint">The title itself stays in your data, so it can be added again later. Letterboxd history is untouched.</p>
+    <p class="hint">The title itself stays in your data, and its page has a “Put it back” button. Letterboxd (watchlist, lists and history) is untouched.</p>
     <div class="actions"><button type="button" class="btn ghost" data-act="close-sheet">Keep it</button><button class="btn danger-solid">Remove</button></div>
   </form>`;
 }

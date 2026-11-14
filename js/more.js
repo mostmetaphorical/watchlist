@@ -123,21 +123,34 @@ export function search(q) {
 }
 
 // ---------------------------------------------------------------- Unsorted
-// On the user's Letterboxd watchlist or lists, unwatched, and on no shelf here yet.
+// On the user's Letterboxd watchlist or lists, unwatched, on no shelf here yet, and
+// not removed. Each row can be handed to Claude (tier S, sorted on the next curation
+// run) or removed (added to "declined"; the title page can put it back).
 export function unsortedIds() {
+  const gone = new Set((S.cur.declined || []).map(d => d.t));
   const ids = new Set();
   for (const [id, f] of Object.entries(S.lb?.films || {})) if (f.watchlist && !f.watched) ids.add(id);
   for (const l of Object.values(S.lb?.lists || {})) for (const id of l.items) ids.add(id);
-  return [...ids].filter(id => !entriesOf(id).length && title(id) && !seen(id).meta);
+  return [...ids].filter(id => !entriesOf(id).length && title(id) && !seen(id).meta && !gone.has(id));
 }
+const pick = (id) => `<div class="irow">${row(id, { pitch: false, marks: false })}
+    <div class="irow-foot"><span class="suggest"></span><span class="irow-acts">
+      <button class="btn small" data-act="ask-sort" data-t="${esc(id)}">Let Claude sort it</button><button class="btn small ghost" data-act="drop-unsorted" data-t="${esc(id)}">Remove</button></span></div>
+  </div>`;
+const waiting = (x) => footRow(x, x.e.note ? `Your hint: ${esc(x.e.note)}` : 'Sorted on the next run', button('unask-sort', x, 'Undo'));
 export function unsorted(ui) {
   const ids = new Set(unsortedIds());
+  const asked = indexed().filter(x => x.e.tier === 'S' && title(x.e.t));
   const watchlist = [...ids].filter(id => lbOf(id)?.watchlist).sort((a, b) => (lbOf(b).watchlist || '').localeCompare(lbOf(a).watchlist || ''));
   const lists = Object.entries(S.lb?.lists || {}).map(([name, l]) => [name, l.items.filter(id => ids.has(id))]).filter(([, x]) => x.length);
-  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Unsorted</h1></header>
-    <p class="lede">On your Letterboxd watchlist or lists, unwatched, and not on any shelf here yet. Open one and choose “Add to a list”.</p><div class="filters">${viewToggle()}</div>
-    ${shelf(ui, 'unsorted:watchlist', heading('Letterboxd watchlist', watchlist.length), rows(watchlist, { pitch: false }))}
-    ${lists.map(([name, items]) => shelf(ui, 'unsorted:' + name, heading(name, items.length), rows(items, { pitch: false }), { open: false })).join('')}`;
+  const list = (items) => `<div class="rows">${items.map(pick).join('')}</div>`;
+  const body = !ids.size && !asked.length ? empty('Nothing unsorted. Everything on your Letterboxd watchlist and lists is on a shelf here, watched or removed.')
+    : `${asked.length ? shelf(ui, 'unsorted:asked', heading('Waiting for Claude', asked.length), `<div class="rows">${asked.map(waiting).join('')}</div>`) : ''}
+    ${watchlist.length ? shelf(ui, 'unsorted:watchlist', heading('Letterboxd watchlist', watchlist.length), list(watchlist)) : ''}
+    ${lists.map(([name, items]) => shelf(ui, 'unsorted:' + name, heading(name, items.length), list(items), { open: false })).join('')}`;
+  return `<header class="view-head"><a class="back" href="#/more">More</a><h1>Unsorted</h1>${syncNote()}</header>
+    <p class="lede">On your Letterboxd watchlist or lists, unwatched, and not on any shelf here yet. “Let Claude sort it” leaves the list to the next curation run (Fridays and Sundays), which also writes the pitch and the film-school notes. “Remove” takes it off this page; Letterboxd is untouched.</p><div class="filters">${viewToggle()}</div>
+    ${body}`;
 }
 
 // ---------------------------------------------------------------- Verdicts

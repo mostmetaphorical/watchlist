@@ -1,7 +1,7 @@
 // The page for one film or show, and the page for one person. The title page is
 // a stack of blocks, each built by its own function below and left out when it
 // has nothing to say.
-import { S, IX, title, entriesOf, verdictsOf, lbOf, diaryOf, pitchOf, seen, open, tmdbRef } from './store.js';
+import { S, IX, title, entriesOf, verdictsOf, lbOf, diaryOf, pitchOf, seen, open, tmdbRef, declinedOf, onLetterboxdLists } from './store.js';
 import { esc, md, frontMatter, noteSections, splitQuestions } from './md.js';
 import { availBlock } from './avail.js';
 import { IMG, ENERGY, TIER, REACTION, VIEWER, STATUS, ROLE, ROLE_RANK, viewToggle, poster, metaLine, ratingBadges, stars, row, shelf, heading, empty } from './parts.js';
@@ -52,11 +52,11 @@ function pitchBlock(t, es) {
 function listsBlock(t, es) {
   const placement = (e, i) => `<li><button class="placement" data-act="edit-entry" data-id="${esc(t.id)}" data-i="${i}" data-energy="${esc(e.energy || (e.tier === 'B?' ? 'test' : ''))}">
       <strong>${esc(TIER[e.tier] || 'Unsorted')}${e.energy ? ', ' + esc(ENERGY[e.energy].toLowerCase()) : ''}</strong>
-      <span>${esc(e.section)}${e.status && e.status !== 'queued' ? ' — ' + esc(STATUS[e.status].toLowerCase()) : ''}${e.star ? ' — ★' : ''}</span>
+      <span>${e.tier === 'S' ? 'Claude picks the list on the next curation run' : esc(e.section)}${e.status && e.status !== 'queued' ? ' — ' + esc(STATUS[e.status].toLowerCase()) : ''}${e.star ? ' — ★' : ''}</span>
       ${e.note && e.tier !== 'R' ? `<em>${esc(e.note)}</em>` : ''}</button></li>`;
   return `<section class="block"><h2>On your lists</h2>
     ${es.length ? `<ul class="placements">${es.map(placement).join('')}</ul>` : '<p class="hint">Not on any list yet.</p>'}
-    ${btn('add-entry', t, 'Add to a list')}
+    <div class="btn-row">${btn('add-entry', t, 'Add to a list')}${es.length ? '' : btn('ask-sort', t, 'Let Claude sort it')}</div>
   </section>`;
 }
 function verdictsBlock(t) {
@@ -158,7 +158,9 @@ export function titlePage(id, ui, note) {
   const es = entriesOf(t.id);
   const synopsis = t.overview || t.syn;
   const canFix = t.match !== 'review' && t.match !== 'notfound' && t.kind !== 'standup';
-  const canRemove = es.length || pitchOf(t.id) || verdictsOf(t.id).length;
+  // Removable from anywhere it shows up: a list, a pitch or verdict, or Unsorted.
+  const gone = !es.length && declinedOf(t.id);
+  const canRemove = !gone && (es.length || pitchOf(t.id) || verdictsOf(t.id).length || onLetterboxdLists(t.id));
   return `<article class="title-page">
     <header class="tp-head">
       <a class="back" href="#/together" data-act="back">Back</a>
@@ -186,6 +188,7 @@ export function titlePage(id, ui, note) {
     <p class="fine">
       ${canFix ? `<button class="linkish" data-act="fix-match" data-id="${esc(t.id)}">Wrong film or show? Fix the match</button><br>` : ''}
       ${canRemove ? `<button class="linkish danger" data-act="remove-title" data-id="${esc(t.id)}">Remove ${t.kind === 'series' ? 'this series' : 'this film'} from your lists</button>` : ''}
+      ${gone ? `Removed from your lists${gone.date ? ' on ' + esc(gone.date) : ''}. <button class="linkish" data-act="restore-title" data-id="${esc(t.id)}">Put it back</button>` : ''}
     </p>
   </article>`;
 }

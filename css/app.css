@@ -332,3 +332,8 @@ form label.check { display: flex; gap: 8px; align-items: center; color: var(--in
 .roll-said { margin: 10px 0 8px; max-width: 58ch; }
 .roll-card > .actions { grid-column: 2; margin-top: 0; }
 @media (max-width: 460px) { .roll-card { grid-template-columns: 96px 1fr; gap: 12px; padding: 12px; } .roll-card h2 { font-size: 1.25rem; } .roll-card .actions { grid-column: 1 / -1; } }
+
+/* "Let Claude sort it": the box at the top of Add to a list, and button pairs on title pages. */
+.ask-sort { border: 1px dashed var(--line); border-radius: var(--r); padding: 10px 12px; margin-bottom: 14px; }
+.ask-sort .hint { margin: 0 0 8px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
